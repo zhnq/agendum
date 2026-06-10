@@ -1,0 +1,10 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Agendum mark">
+  <path d="M34 98L59.6 31H72.4L98 98H82.7L76.8 82.2H55.2L49.3 98H34Z" fill="#19231D"/>
+  <path d="M60.2 69.1L66 52.7L71.8 69.1H60.2Z" fill="#F6F8F4"/>
+  <path d="M29.6 76.3C24.4 63.7 25 49.2 31.6 37C38.9 23.5 52 14.2 67.1 11.7" stroke="#2F7D5A" stroke-width="8" stroke-linecap="round"/>
+  <path d="M93.9 34.5C102.2 44.7 105.4 58.4 102.5 71.1C100 82.1 93.1 91.8 83.4 97.7" stroke="#2F7D5A" stroke-width="8" stroke-linecap="round"/>
+  <path d="M51.4 105.4C60.6 109.1 71 109.3 80.5 105.9" stroke="#2F7D5A" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="91" cy="34" r="10" fill="#BFD2B0"/>
+  <circle cx="64" cy="79" r="13" fill="#BFD2B0"/>
+  <circle cx="64" cy="79" r="6" fill="#F6F8F4"/>
+</svg>

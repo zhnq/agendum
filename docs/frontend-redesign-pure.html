@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>smardydy</title>
+    <style>
+      :root {
+        --bg: #f6f8f4;
+        --panel: #ffffff;
+        --ink: #19231d;
+        --muted: #647067;
+        --line: #dce3dc;
+        --soft: #edf3ed;
+        --accent: #2f7d5a;
+        --accent-2: #d9efe4;
+        --warn: #b7791f;
+        --danger: #b4433a;
+        --ok: #258c5b;
+        --running: #3d78a8;
+        --shadow: 0 14px 40px rgba(25, 35, 29, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: var(--bg);
+        font-family:
+          MiSans, "MiSans VF", "MiSans Latin", ui-sans-serif, system-ui, -apple-system,
+          BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      }
+
+      button,
+      input,
+      textarea,
+      select {
+        font: inherit;
+      }
+
+      .app {
+        display: grid;
+        grid-template-columns: 248px minmax(0, 1fr);
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        padding: 20px 16px;
+        background: #fbfcf9;
+        border-right: 1px solid var(--line);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 8px 18px;
+      }
+
+      .mark {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        color: white;
+        background: var(--accent);
+        font-weight: 800;
+      }
+
+      .brand strong {
+        display: block;
+        font-size: 17px;
+        line-height: 1.1;
+      }
+
+      .brand span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .nav-section {
+        margin: 16px 0 8px;
+        padding: 0 8px;
+        color: #7a867d;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .nav button {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 10px;
+        margin: 3px 0;
+        border: 0;
+        border-radius: 8px;
+        color: #354238;
+        background: transparent;
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .nav button:hover {
+        background: var(--soft);
+      }
+
+      .nav button.active {
+        color: var(--accent);
+        background: var(--accent-2);
+        font-weight: 700;
+      }
+
+      .nav-label {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+
+      .count {
+        min-width: 24px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        color: var(--muted);
+        background: #eef1eb;
+        font-size: 12px;
+        text-align: center;
+      }
+
+      .side-health {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 18px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: white;
+      }
+
+      .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        margin-right: 6px;
+        border-radius: 999px;
+        background: var(--ok);
+      }
+
+      .dot.running {
+        background: var(--running);
+      }
+
+      .dot.fail {
+        background: var(--danger);
+      }
+
+      .main {
+        min-width: 0;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        height: 64px;
+        padding: 0 28px;
+        background: rgba(246, 248, 244, 0.88);
+        border-bottom: 1px solid rgba(220, 227, 220, 0.78);
+        backdrop-filter: blur(16px);
+      }
+
+      .topbar h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .topbar p {
+        margin: 2px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 34px;
+        padding: 7px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: var(--ink);
+        background: white;
+        cursor: pointer;
+      }
+
+      .btn:hover {
+        border-color: #bdd0c2;
+      }
+
+      .btn.primary {
+        color: white;
+        border-color: var(--accent);
+        background: var(--accent);
+      }
+
+      .btn.ghost {
+        background: transparent;
+      }
+
+      .btn.danger {
+        color: var(--danger);
+      }
+
+      .page {
+        display: none;
+        padding: 26px 28px 48px;
+      }
+
+      .page.active {
+        display: block;
+        animation: enter 180ms ease-out;
+      }
+
+      @keyframes enter {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .grid.cols-2 {
+        grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+      }
+
+      .grid.cols-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .panel.pad {
+        padding: 18px;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 14px;
+      }
+
+      .section-head h2,
+      .section-head h3 {
+        margin: 0;
+      }
+
+      .section-head p,
+      .muted {
+        color: var(--muted);
+      }
+
+      .section-head p {
+        margin: 4px 0 0;
+        font-size: 13px;
+      }
+
+      .kpi {
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: white;
+      }
+
+      .kpi b {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 28px;
+        letter-spacing: -0.02em;
+      }
+
+      .kpi span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .audit-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .audit-list li {
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfcf9;
+      }
+
+      .audit-list strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      .table-wrap {
+        overflow: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+
+      th {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        text-align: left;
+        background: #fbfcf9;
+      }
+
+      th,
+      td {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: middle;
+      }
+
+      tr:hover td {
+        background: #fbfdf9;
+      }
+
+      .task-name {
+        font-weight: 750;
+      }
+
+      .sub {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        color: #385143;
+        background: var(--soft);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+
+      .tag.ok {
+        color: var(--ok);
+        background: #e1f3e9;
+      }
+
+      .tag.fail {
+        color: var(--danger);
+        background: #f7e6e3;
+      }
+
+      .tag.run {
+        color: var(--running);
+        background: #e5f0f7;
+      }
+
+      .tag.warn {
+        color: var(--warn);
+        background: #f7edda;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .input {
+        min-height: 34px;
+        padding: 7px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: white;
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 340px;
+        gap: 16px;
+      }
+
+      .inspector {
+        position: sticky;
+        top: 82px;
+        align-self: start;
+      }
+
+      .field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+
+      .field label {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .textarea {
+        width: 100%;
+        min-height: 112px;
+        resize: vertical;
+      }
+
+      .type-picker {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .type-option {
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: white;
+      }
+
+      .type-option.active {
+        border-color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+
+      .rule-row,
+      .timeline-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .rule-row:last-child,
+      .timeline-row:last-child {
+        border-bottom: 0;
+      }
+
+      .code {
+        display: block;
+        overflow: auto;
+        margin: 0;
+        padding: 14px;
+        border-radius: 8px;
+        color: #dfe9df;
+        background: #17211b;
+        font: 12px/1.6 Consolas, "Courier New", monospace;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 14px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .tab {
+        padding: 9px 4px;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        color: var(--muted);
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .tab.active {
+        color: var(--accent);
+        border-color: var(--accent);
+        font-weight: 750;
+      }
+
+      .run-rail {
+        display: grid;
+        grid-template-columns: 170px minmax(0, 1fr);
+        gap: 14px;
+      }
+
+      .rail {
+        display: grid;
+        gap: 10px;
+      }
+
+      .rail-item {
+        padding: 11px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: white;
+      }
+
+      .rail-item.active {
+        border-color: var(--accent);
+      }
+
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: none;
+        place-items: center;
+        padding: 24px;
+        background: rgba(25, 35, 29, 0.35);
+      }
+
+      .modal-backdrop.open {
+        display: grid;
+      }
+
+      .modal {
+        width: min(620px, 100%);
+        max-height: 88vh;
+        overflow: auto;
+        padding: 18px;
+        border-radius: 8px;
+        background: white;
+        box-shadow: 0 24px 80px rgba(25, 35, 29, 0.22);
+      }
+
+      .mobile-note {
+        display: none;
+      }
+
+      @media (max-width: 940px) {
+        .app {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          position: static;
+          height: auto;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .nav {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 4px;
+        }
+
+        .side-health {
+          position: static;
+          margin-top: 14px;
+        }
+
+        .grid.cols-2,
+        .grid.cols-3,
+        .split,
+        .run-rail {
+          grid-template-columns: 1fr;
+        }
+
+        .inspector {
+          position: static;
+        }
+
+        .topbar {
+          align-items: flex-start;
+          height: auto;
+          padding: 14px 18px;
+        }
+
+        .top-actions {
+          display: none;
+        }
+
+        .page {
+          padding: 18px;
+        }
+
+        .mobile-note {
+          display: block;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="mark">S</div>
+          <div>
+            <strong>smardydy</strong>
+            <span>Agent automation console</span>
+          </div>
+        </div>
+
+        <div class="nav-section">Console</div>
+        <nav class="nav" aria-label="smardydy pages">
+          <button class="active" data-page="tasks">
+            <span class="nav-label">□ 任务列表</span><span class="count">12</span>
+          </button>
+          <button data-page="task-detail">
+            <span class="nav-label">▣ 任务详情</span><span class="count">2</span>
+          </button>
+          <button data-page="task-edit">
+            <span class="nav-label">✎ 任务编辑</span><span class="count">表单</span>
+          </button>
+          <button data-page="runs">
+            <span class="nav-label">◌ 运行历史</span><span class="count">38</span>
+          </button>
+          <button data-page="run-detail">
+            <span class="nav-label">▤ 运行详情</span><span class="count">实时</span>
+          </button>
+          <button data-page="providers">
+            <span class="nav-label">◎ Provider</span><span class="count">4</span>
+          </button>
+          <button data-page="channels">
+            <span class="nav-label">◈ 通知渠道</span><span class="count">3</span>
+          </button>
+        </nav>
+
+        <div class="side-health">
+          <div><span class="dot"></span><strong>daemon 运行中</strong></div>
+          <div class="sub">2 个任务正在执行 · API 延迟 28ms</div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <h1 id="page-title">任务列表</h1>
+            <p id="page-desc">把任务列表变成健康总览和今日调度入口。</p>
+          </div>
+          <div class="top-actions">
+            <button class="btn ghost" data-page-link="runs">查看运行</button>
+            <button class="btn primary" data-page-link="task-edit">新建任务</button>
+          </div>
+        </header>
+
+        <section class="page active" id="tasks" data-title="任务列表" data-desc="把任务列表变成健康总览和今日调度入口。">
+          <div class="grid cols-3">
+            <div class="kpi"><b>12</b><span>全部任务 · 9 个启用</span></div>
+            <div class="kpi"><b>2</b><span>正在运行 · 1 个即将超时</span></div>
+            <div class="kpi"><b>3</b><span>过去 24 小时失败运行</span></div>
+          </div>
+
+          <div class="split" style="margin-top: 16px">
+            <div class="panel pad">
+              <div class="toolbar">
+                <div class="filters">
+                  <input class="input" value="agent / script / 名称" aria-label="search" />
+                  <button class="btn primary">全部</button>
+                  <button class="btn">失败优先</button>
+                  <button class="btn">正在运行</button>
+                  <button class="btn">未配置调度</button>
+                </div>
+                <button class="btn primary" data-page-link="task-edit">新建任务</button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>任务</th>
+                      <th>状态</th>
+                      <th>调度</th>
+                      <th>最近运行</th>
+                      <th>下次触发</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><div class="task-name">每日壁纸同步</div><div class="sub">script · PowerShell · 重试 1 次</div></td>
+                      <td><span class="tag ok"><span class="dot"></span>成功</span></td>
+                      <td>法定工作日 09:00</td>
+                      <td>今天 09:01 · 18 秒</td>
+                      <td>明天 09:00</td>
+                      <td><button class="btn" data-page-link="task-detail">详情</button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="task-name">仓库依赖巡检</div><div class="sub">agent · 智谱 GLM Coding Plan</div></td>
+                      <td><span class="tag run"><span class="dot running"></span>运行中</span></td>
+                      <td>每 30 分钟；webhook</td>
+                      <td>正在执行 · 第 8 轮</td>
+                      <td>18 分钟后</td>
+                      <td><button class="btn" data-page-link="run-detail">看轨迹</button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="task-name">周报自动整理</div><div class="sub">agent · 注入最近 5 条简报</div></td>
+                      <td><span class="tag fail"><span class="dot fail"></span>失败</span></td>
+                      <td>cron: 0 18 * * 5</td>
+                      <td>昨天 18:04 · Provider 超时</td>
+                      <td>周五 18:00</td>
+                      <td><button class="btn danger" data-page-link="run-detail">排查</button></td>
+                    </tr>
+                    <tr>
+                      <td><div class="task-name">临时数据备份</div><div class="sub">script · C:\Users\ming\data</div></td>
+                      <td><span class="tag warn">停用</span></td>
+                      <td>未配置调度</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td><button class="btn">启用</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <aside class="panel pad inspector">
+              <div class="section-head">
+                <div>
+                  <h3>今日队列</h3>
+                  <p>把“接下来会发生什么”从表格里拉出来。</p>
+                </div>
+              </div>
+              <div class="rule-row"><div><strong>18:30</strong><div class="sub">仓库依赖巡检</div></div><span class="tag run">进行中</span></div>
+              <div class="rule-row"><div><strong>20:00</strong><div class="sub">RSS 摘要同步</div></div><span class="tag">待运行</span></div>
+              <div class="rule-row"><div><strong>明天 09:00</strong><div class="sub">每日壁纸同步</div></div><span class="tag ok">健康</span></div>
+              <button class="btn" style="width: 100%; margin-top: 14px" data-page-link="runs">打开运行历史</button>
+            </aside>
+          </div>
+        </section>
+
+        <section class="page" id="task-detail" data-title="任务详情" data-desc="任务身份、调度、运行证据和记忆在一个页面闭环。">
+          <div class="panel pad">
+            <div class="section-head">
+              <div>
+                <h2>仓库依赖巡检 <span class="tag run">运行中</span> <span class="tag">agent</span></h2>
+                <p>每 30 分钟检查依赖风险，失败时通过飞书群通知。</p>
+              </div>
+              <div class="top-actions">
+                <button class="btn primary" data-page-link="run-detail">查看当前运行</button>
+                <button class="btn" data-page-link="task-edit">编辑</button>
+                <button class="btn">停用</button>
+              </div>
+            </div>
+            <div class="grid cols-3">
+              <div class="kpi"><b>96%</b><span>近 7 日成功率</span></div>
+              <div class="kpi"><b>第 8 轮</b><span>当前 Agent 运行进度</span></div>
+              <div class="kpi"><b>18 分</b><span>下次计划触发</span></div>
+            </div>
+          </div>
+
+          <div class="grid cols-2" style="margin-top: 16px">
+            <div class="panel pad">
+              <div class="tabs">
+                <button class="tab active">运行历史</button>
+                <button class="tab">任务记忆</button>
+                <button class="tab">Webhook</button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>运行</th><th>触发</th><th>状态</th><th>耗时</th><th>简报</th></tr></thead>
+                  <tbody>
+                    <tr><td>#42</td><td>固定间隔</td><td><span class="tag run">运行中</span></td><td>—</td><td>正在分析 package 更新</td></tr>
+                    <tr><td>#39</td><td>Webhook</td><td><span class="tag ok">成功</span></td><td>1 分 12 秒</td><td>发现 2 个可选更新，无安全风险</td></tr>
+                    <tr><td>#36</td><td>固定间隔</td><td><span class="tag fail">失败</span></td><td>42 秒</td><td>Provider 超时，已通知飞书</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <aside class="panel pad">
+              <div class="section-head"><h3>运行配置摘要</h3></div>
+              <div class="rule-row"><div><strong>Provider</strong><div class="sub">智谱 GLM Coding Plan · glm-4.7</div></div><span class="tag ok">默认</span></div>
+              <div class="rule-row"><div><strong>调度</strong><div class="sub">每 30 分钟；允许 webhook；启动时不执行</div></div></div>
+              <div class="rule-row"><div><strong>通知</strong><div class="sub">飞书提醒群 · 仅失败</div></div></div>
+              <div class="rule-row"><div><strong>记忆</strong><div class="sub">注入最近 3 条运行简报</div></div></div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="page" id="task-edit" data-title="任务编辑" data-desc="把长表单拆成可理解的任务编排步骤。">
+          <div class="split">
+            <div class="grid">
+              <div class="panel pad">
+                <div class="section-head"><div><h2>1. 基础与类型</h2><p>先决定这是命令任务还是 Agent 任务。</p></div></div>
+                <div class="field-grid">
+                  <div class="field"><label>任务名称</label><input class="input" value="仓库依赖巡检" /></div>
+                  <div class="field"><label>工作目录</label><input class="input" value="C:\Users\ming\code\smardydy" /></div>
+                </div>
+                <div class="type-picker" style="margin-top: 12px">
+                  <div class="type-option"><strong>script</strong><div class="sub">执行 PowerShell 命令，适合确定性脚本。</div></div>
+                  <div class="type-option active"><strong>agent</strong><div class="sub">自然语言目标 + 工具调用 + 运行简报。</div></div>
+                </div>
+              </div>
+
+              <div class="panel pad">
+                <div class="section-head"><div><h2>2. 执行内容</h2><p>Agent 任务重点显示目标、Provider 和安全边界。</p></div></div>
+                <div class="field"><label>任务指令</label><textarea class="input textarea">检查当前仓库依赖和构建状态。若发现失败，尝试定位原因并输出简报；不要自动提交代码。</textarea></div>
+                <div class="field-grid" style="margin-top: 12px">
+                  <div class="field"><label>Provider</label><select class="input"><option>智谱 GLM Coding Plan（anthropic / glm-4.7）</option></select></div>
+                  <div class="field"><label>最大轮数</label><input class="input" value="15 轮" /></div>
+                </div>
+              </div>
+
+              <div class="panel pad">
+                <div class="section-head"><div><h2>3. 触发与通知</h2><p>把规则、补跑和通知放在同一决策区。</p></div><button class="btn">添加规则</button></div>
+                <div class="rule-row"><div><strong>固定间隔</strong><div class="sub">每 30 分钟运行一次</div></div><button class="btn">编辑</button></div>
+                <div class="rule-row"><div><strong>Webhook</strong><div class="sub">允许外部触发，保存后生成 token</div></div><span class="tag ok">开启</span></div>
+                <div class="rule-row"><div><strong>补跑策略</strong><div class="sub">daemon 停机期间错过的调度：跳过</div></div><button class="btn">切换</button></div>
+                <div class="rule-row"><div><strong>通知</strong><div class="sub">飞书提醒群 · 仅失败</div></div><button class="btn">添加</button></div>
+              </div>
+            </div>
+
+            <aside class="panel pad inspector">
+              <div class="section-head"><div><h3>任务预览</h3><p>用户不用读完整表单，也能知道保存后的行为。</p></div></div>
+              <div class="rule-row"><div><strong>会怎样触发</strong><div class="sub">每 30 分钟；支持 webhook 手动触发。</div></div></div>
+              <div class="rule-row"><div><strong>失败会怎样</strong><div class="sub">记录运行简报，并通知飞书提醒群。</div></div></div>
+              <div class="rule-row"><div><strong>潜在风险</strong><div class="sub">Provider 当前未测试超过 3 天，建议保存前测试。</div></div><span class="tag warn">提醒</span></div>
+              <button class="btn primary" style="width: 100%; margin-top: 12px">保存任务</button>
+            </aside>
+          </div>
+        </section>
+
+        <section class="page" id="runs" data-title="运行历史" data-desc="运行历史页服务于检索、排障和趋势判断。">
+          <div class="panel pad">
+            <div class="toolbar">
+              <div class="filters">
+                <input class="input" value="搜索任务 / 错误 / 简报" />
+                <button class="btn primary">全部</button>
+                <button class="btn">失败</button>
+                <button class="btn">运行中</button>
+                <button class="btn">Webhook</button>
+              </div>
+              <button class="btn">导出最近 100 条</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>运行</th><th>任务</th><th>触发</th><th>状态</th><th>开始</th><th>耗时</th><th>简报</th></tr></thead>
+                <tbody>
+                  <tr><td>#42</td><td>仓库依赖巡检</td><td>固定间隔</td><td><span class="tag run">运行中</span></td><td>19:12:04</td><td>—</td><td>正在读取 package 文件</td></tr>
+                  <tr><td>#41</td><td>每日壁纸同步</td><td>cron</td><td><span class="tag ok">成功</span></td><td>09:00:00</td><td>18 秒</td><td>更新 1 张壁纸，缓存已清理</td></tr>
+                  <tr><td>#40</td><td>周报自动整理</td><td>cron</td><td><span class="tag fail">失败</span></td><td>昨天 18:00</td><td>42 秒</td><td>Provider 超时，未生成周报</td></tr>
+                  <tr><td>#39</td><td>仓库依赖巡检</td><td>Webhook</td><td><span class="tag ok">成功</span></td><td>昨天 16:20</td><td>1 分 12 秒</td><td>无安全风险</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="run-detail" data-title="运行详情" data-desc="把日志和 Agent 轨迹合并成可排障的执行证据链。">
+          <div class="panel pad">
+            <div class="section-head">
+              <div>
+                <h2>运行 #42 <span class="tag run">运行中</span></h2>
+                <p>仓库依赖巡检 · 固定间隔触发 · 每 3 秒自动刷新</p>
+              </div>
+              <button class="btn" data-page-link="task-detail">回到任务</button>
+            </div>
+            <div class="grid cols-3">
+              <div class="kpi"><b>02:18</b><span>已运行时间</span></div>
+              <div class="kpi"><b>8 / 15</b><span>Agent 轮数</span></div>
+              <div class="kpi"><b>3</b><span>工具调用</span></div>
+            </div>
+          </div>
+
+          <div class="run-rail" style="margin-top: 16px">
+            <div class="rail">
+              <div class="rail-item active"><strong>执行轨迹</strong><div class="sub">Agent transcript</div></div>
+              <div class="rail-item"><strong>日志</strong><div class="sub">stdout / stderr</div></div>
+              <div class="rail-item"><strong>简报</strong><div class="sub">结束后生成</div></div>
+            </div>
+            <div class="panel pad">
+              <div class="timeline-row"><div><span class="tag">19:12:04</span><strong> system</strong><div class="sub">启动运行，加载任务记忆 3 条。</div></div></div>
+              <div class="timeline-row"><div><span class="tag run">19:12:19</span><strong> assistant</strong><div class="sub">我会先检查 package.json 和 lockfile，再运行 typecheck。</div></div></div>
+              <div class="timeline-row"><div><span class="tag ok">19:12:31</span><strong> tool_call</strong><div class="sub">shell_command: bun run typecheck</div></div><button class="btn" data-modal="log">展开</button></div>
+              <div class="timeline-row"><div><span class="tag warn">19:13:46</span><strong> tool_result</strong><div class="sub">发现 1 个 TypeScript 类型警告，正在定位来源。</div></div></div>
+              <pre class="code">PS&gt; bun run typecheck
+web/src/pages/TaskEdit.tsx: note - validating schedule rules...
+No blocking compile errors.</pre>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="providers" data-title="Provider" data-desc="把模型供应商从配置表升级为能力清单。">
+          <div class="panel pad">
+            <div class="toolbar">
+              <div><h2 style="margin: 0">Provider 能力</h2><div class="sub">默认模型、连通性、关联任务和最后测试一行看完。</div></div>
+              <button class="btn primary" data-modal="provider">新建 Provider</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>名称</th><th>协议 / 模型</th><th>状态</th><th>关联任务</th><th>最后测试</th><th>操作</th></tr></thead>
+                <tbody>
+                  <tr><td><div class="task-name">智谱 GLM Coding Plan</div><div class="sub">https://open.bigmodel.cn/api/anthropic</div></td><td><span class="tag">anthropic</span> glm-4.7</td><td><span class="tag ok">全局默认 · 可用</span></td><td>5 个任务</td><td>今天 18:42</td><td><button class="btn">测试</button></td></tr>
+                  <tr><td><div class="task-name">OpenAI 官方</div><div class="sub">https://api.openai.com/v1</div></td><td><span class="tag">openai</span> gpt-5.1</td><td><span class="tag warn">未测试</span></td><td>1 个任务</td><td>3 天前</td><td><button class="btn">测试</button></td></tr>
+                  <tr><td><div class="task-name">DeepSeek</div><div class="sub">https://api.deepseek.com</div></td><td><span class="tag">openai</span> deepseek-chat</td><td><span class="tag fail">上次失败</span></td><td>0 个任务</td><td>昨天 21:10</td><td><button class="btn danger">修复</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="channels" data-title="通知渠道" data-desc="通知渠道页应该让用户知道失败会不会真的被送达。">
+          <div class="panel pad">
+            <div class="toolbar">
+              <div><h2 style="margin: 0">通知渠道</h2><div class="sub">按送达方式、测试状态、关联任务管理。</div></div>
+              <button class="btn primary" data-modal="channel">新建渠道</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>渠道</th><th>类型</th><th>状态</th><th>关联任务</th><th>配置摘要</th><th>操作</th></tr></thead>
+                <tbody>
+                  <tr><td><div class="task-name">飞书提醒群</div><div class="sub">失败和手动测试通知</div></td><td><span class="tag">飞书 Webhook</span></td><td><span class="tag ok">可送达</span></td><td>6 个任务</td><td>open.feishu.cn/.../hook</td><td><button class="btn">测试</button></td></tr>
+                  <tr><td><div class="task-name">桌面通知</div><div class="sub">本机 Windows toast</div></td><td><span class="tag">Windows 通知</span></td><td><span class="tag ok">无需配置</span></td><td>3 个任务</td><td>本地系统通知</td><td><button class="btn">测试</button></td></tr>
+                  <tr><td><div class="task-name">Server酱</div><div class="sub">移动端备用提醒</div></td><td><span class="tag">Server酱</span></td><td><span class="tag warn">未测试</span></td><td>1 个任务</td><td>sendkey: SCTX...</td><td><button class="btn">测试</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="modal">
+      <div class="modal">
+        <div class="section-head">
+          <div>
+            <h2 id="modal-title">弹窗</h2>
+            <p id="modal-desc">当前操作的详细配置。</p>
+          </div>
+          <button class="btn" id="close-modal">关闭</button>
+        </div>
+        <div id="modal-body"></div>
+      </div>
+    </div>
+
+    <script>
+      const pageMeta = {};
+      document.querySelectorAll(".page").forEach((page) => {
+        pageMeta[page.id] = {
+          title: page.dataset.title,
+          desc: page.dataset.desc,
+        };
+      });
+
+      function showPage(id) {
+        document.querySelectorAll(".page").forEach((page) => page.classList.toggle("active", page.id === id));
+        document.querySelectorAll(".nav button").forEach((button) => {
+          button.classList.toggle("active", button.dataset.page === id);
+        });
+        document.getElementById("page-title").textContent = pageMeta[id].title;
+        document.getElementById("page-desc").textContent = pageMeta[id].desc;
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      document.querySelectorAll("[data-page], [data-page-link]").forEach((el) => {
+        el.addEventListener("click", () => showPage(el.dataset.page || el.dataset.pageLink));
+      });
+
+      const modal = document.getElementById("modal");
+      const modalTitle = document.getElementById("modal-title");
+      const modalDesc = document.getElementById("modal-desc");
+      const modalBody = document.getElementById("modal-body");
+
+      const modalContent = {
+        provider: {
+          title: "新建 Provider",
+          desc: "把预设选择、协议、Base URL 和模型放进同一个短流程。",
+          body: `
+            <div class="field"><label>预设供应商</label><select class="input"><option>智谱 GLM Coding Plan（anthropic，推荐）</option></select></div>
+            <div class="field-grid" style="margin-top:12px">
+              <div class="field"><label>名称</label><input class="input" value="智谱 GLM Coding Plan"></div>
+              <div class="field"><label>协议</label><select class="input"><option>anthropic</option><option>openai</option></select></div>
+            </div>
+            <div class="field" style="margin-top:12px"><label>API Key</label><input class="input" value="••••••••••••"></div>
+            <button class="btn primary" style="margin-top:14px">保存并测试</button>
+          `,
+        },
+        channel: {
+          title: "新建通知渠道",
+          desc: "配置时直接解释适用场景，减少用户猜测。",
+          body: `
+            <div class="field-grid">
+              <div class="field"><label>名称</label><input class="input" value="飞书提醒群"></div>
+              <div class="field"><label>类型</label><select class="input"><option>飞书群机器人 Webhook</option><option>Windows 通知</option></select></div>
+            </div>
+            <div class="field" style="margin-top:12px"><label>Webhook URL</label><input class="input" value="https://open.feishu.cn/open-apis/bot/v2/hook/..."></div>
+            <button class="btn primary" style="margin-top:14px">保存并发送测试消息</button>
+          `,
+        },
+        log: {
+          title: "工具调用详情",
+          desc: "运行详情页里，工具输入输出应从时间轴原地展开。",
+          body: `<pre class="code">{
+  "command": "bun run typecheck",
+  "cwd": "C:\\\\Users\\\\ming\\\\code\\\\smardydy",
+  "timeout_ms": 120000
+}</pre>`,
+        },
+      };
+
+      document.querySelectorAll("[data-modal]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const content = modalContent[button.dataset.modal];
+          modalTitle.textContent = content.title;
+          modalDesc.textContent = content.desc;
+          modalBody.innerHTML = content.body;
+          modal.classList.add("open");
+        });
+      });
+
+      document.getElementById("close-modal").addEventListener("click", () => modal.classList.remove("open"));
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal) modal.classList.remove("open");
+      });
+    </script>
+  </body>
+</html>

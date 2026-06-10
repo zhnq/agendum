@@ -1,0 +1,337 @@
+/* ===== 设计令牌 ===== */
+:root {
+  --bg: #f5f7fb;
+  --panel: #ffffff;
+  --side: #f9fafd;
+  --ink: #1b2434;
+  --muted: #5d6b81;
+  --line: #dde3ee;
+  --soft: #eef2fa;
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-soft: #dce8fd;
+  --ok: #1f8a4c;
+  --danger: #c63f36;
+  --warn: #b7791f;
+  --running: #0d8ca3;
+  --card-shadow: 0 1px 2px rgba(27, 36, 52, 0.05);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: MiSans, 'MiSans VF', 'PingFang SC', 'Microsoft YaHei', system-ui, 'Segoe UI',
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ===== 面板卡：全站统一皮肤 ===== */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+}
+
+.panel-pad {
+  padding: 16px 20px;
+}
+
+/* 包住 antd Table 时裁掉圆角溢出 */
+.panel-table {
+  overflow: hidden;
+}
+
+/* ===== 状态胶囊 StatusTag ===== */
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.status-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+}
+
+.status-dot-pulse {
+  animation: status-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ===== 次要小标签（触发方式 / 类型 / 协议等） ===== */
+.mini-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.mini-tag.mini-tag-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mini-tag.mini-tag-outline {
+  background: #ffffff;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.mini-tag.mini-tag-warn {
+  background: #f8efdc;
+  color: var(--warn);
+}
+
+/* ===== 统计卡 ===== */
+.stat-num {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.stat-label {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.stat-sub {
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ===== 表格 ===== */
+.clickable-row {
+  cursor: pointer;
+}
+
+.cell-sub {
+  overflow: hidden;
+  max-width: 260px;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 调度摘要单行省略，cron 表达式不允许中断折行 */
+.cell-schedule {
+  display: inline-block;
+  overflow: hidden;
+  max-width: 200px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+/* ===== 任务列表右栏：今日队列 ===== */
+.queue-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--soft);
+  cursor: pointer;
+}
+
+.queue-row:hover {
+  background: #f7f9fd;
+}
+
+/* ===== 任务详情：配置摘要分组 ===== */
+.desc-group + .desc-group {
+  margin-top: 20px;
+}
+
+.desc-group-title {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.desc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 24px;
+}
+
+@media (max-width: 700px) {
+  .desc-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.desc-item-span {
+  grid-column: 1 / -1;
+}
+
+.desc-item-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.desc-item-value {
+  margin-top: 2px;
+  font-size: 14px;
+  word-break: break-all;
+}
+
+/* ===== 日志深色代码块 ===== */
+.log-pre {
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  background: #1a2233;
+  color: #dde5f2;
+  padding: 12px 16px;
+  border-radius: 8px;
+  max-height: 520px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+/* ===== 运行详情：执行轨迹 ===== */
+.trace-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--soft);
+}
+
+.trace-row:last-child {
+  border-bottom: none;
+}
+
+.trace-time {
+  flex: none;
+  width: 60px;
+  padding-top: 3px;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.role-pill {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+/* transcript 中 assistant 文本气泡 */
+.bubble {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 880px;
+}
+
+.transcript-pre {
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+}
+
+.memory-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ===== 任务编辑页 ===== */
+.schedule-rule-row {
+  background: #f9fafd;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.sticky-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  background: rgba(245, 247, 251, 0.88);
+  backdrop-filter: blur(12px);
+}
+
+/* 任务编辑页右侧预览栏 */
+.preview-side {
+  position: sticky;
+  top: 80px;
+  width: 300px;
+  flex: none;
+}
+
+.preview-section-title {
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.preview-section-value {
+  font-size: 13px;
+  word-break: break-all;
+}
