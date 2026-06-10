@@ -1,4 +1,4 @@
-﻿# smardydy 托盘守护进程
+# Agendum 托盘守护进程
 # 职责：拉起并监控 daemon，托盘图标显示状态（绿=运行中 红=掉线），掉线弹通知并自动重启。
 $ErrorActionPreference = 'SilentlyContinue'
 Add-Type -AssemblyName System.Windows.Forms
@@ -8,13 +8,14 @@ $Root      = Split-Path -Parent $PSScriptRoot
 $HealthUrl = 'http://127.0.0.1:8787/health'
 $UiUrl     = 'http://127.0.0.1:8787'
 $LogFile   = Join-Path $Root 'data\tray.log'
+$DaemonExe = Join-Path $Root 'agendum-daemon.exe'
 
 function Write-TrayLog([string]$msg) {
     try { Add-Content -Path $LogFile -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $msg" -Encoding UTF8 } catch {}
 }
 
 # 单实例保护
-$mutex = New-Object System.Threading.Mutex($false, 'smardydy-tray-mutex')
+$mutex = New-Object System.Threading.Mutex($false, 'agendum-tray-mutex')
 if (-not $mutex.WaitOne(0)) { exit }
 
 function New-DotIcon([System.Drawing.Color]$color) {
@@ -54,8 +55,13 @@ function Test-Daemon {
 
 function Start-Daemon {
     try {
-        Start-Process -FilePath 'bun' -ArgumentList 'run', 'src/daemon/index.ts' `
-            -WorkingDirectory $Root -WindowStyle Hidden
+        if (Test-Path $DaemonExe) {
+            Start-Process -FilePath $DaemonExe -WorkingDirectory $Root -WindowStyle Hidden
+        }
+        else {
+            Start-Process -FilePath 'bun' -ArgumentList 'run', 'src/daemon/index.ts' `
+                -WorkingDirectory $Root -WindowStyle Hidden
+        }
         Write-TrayLog 'Start-Daemon: 已发起启动'
     } catch {
         Write-TrayLog "Start-Daemon 失败: $_"
@@ -70,7 +76,7 @@ function Stop-Daemon {
 
 $notify = New-Object System.Windows.Forms.NotifyIcon
 $notify.Icon = $iconUnknown
-$notify.Text = 'smardydy · 检测中'
+$notify.Text = 'Agendum · 检测中'
 $notify.Visible = $true
 
 # ---- 右键菜单 ----
@@ -81,7 +87,7 @@ $miOpen.Add_Click({ Start-Process $UiUrl })
 
 $miRestart = $menu.Items.Add('重启 daemon')
 $miRestart.Add_Click({
-    $notify.ShowBalloonTip(2000, 'smardydy', '正在重启 daemon…', 'Info')
+    $notify.ShowBalloonTip(2000, 'Agendum', '正在重启 daemon…', 'Info')
     Stop-Daemon
     Start-Sleep -Milliseconds 800
     Start-Daemon
@@ -124,9 +130,9 @@ $timer.Add_Tick({
         if ($state.up -ne $true) {
             Write-TrayLog 'daemon 状态: 运行中'
             $notify.Icon = $iconUp
-            $notify.Text = 'smardydy · daemon 运行中'
+            $notify.Text = 'Agendum · daemon 运行中'
             if ($state.up -eq $false) {
-                $notify.ShowBalloonTip(3000, 'smardydy', 'daemon 已恢复运行', 'Info')
+                $notify.ShowBalloonTip(3000, 'Agendum', 'daemon 已恢复运行', 'Info')
             }
         }
         $state.up = $true
@@ -135,20 +141,20 @@ $timer.Add_Tick({
         if ($state.up -ne $false) {
             Write-TrayLog 'daemon 状态: 已停止'
             $notify.Icon = $iconDown
-            $notify.Text = 'smardydy · daemon 已停止'
-            $notify.ShowBalloonTip(5000, 'smardydy', 'daemon 已停止运行', 'Warning')
+            $notify.Text = 'Agendum · daemon 已停止'
+            $notify.ShowBalloonTip(5000, 'Agendum', 'daemon 已停止运行', 'Warning')
         }
         $state.up = $false
         # 给刚启动的 daemon 20 秒就绪窗口，避免连环重启
         if ($state.autoRestart -and ((Get-Date) - $state.lastStart).TotalSeconds -gt 20) {
             if ($state.restartAttempts -lt 5) {
                 $state.restartAttempts++
-                $notify.ShowBalloonTip(3000, 'smardydy', "正在自动重启 daemon（第 $($state.restartAttempts)/5 次）", 'Info')
+                $notify.ShowBalloonTip(3000, 'Agendum', "正在自动重启 daemon（第 $($state.restartAttempts)/5 次）", 'Info')
                 Start-Daemon
             }
             elseif ($state.restartAttempts -eq 5) {
                 $state.restartAttempts++
-                $notify.ShowBalloonTip(10000, 'smardydy', 'daemon 连续重启失败，已暂停自动重启，请检查数据目录日志', 'Error')
+                $notify.ShowBalloonTip(10000, 'Agendum', 'daemon 连续重启失败，已暂停自动重启，请检查数据目录日志', 'Error')
             }
         }
     }
@@ -162,3 +168,4 @@ if (-not (Test-Daemon)) { Start-Daemon }
 [System.Windows.Forms.Application]::Run()
 Write-TrayLog '托盘退出'
 $mutex.ReleaseMutex()
+

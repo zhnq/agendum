@@ -1,52 +1,212 @@
-# smardydy
+# Agendum
 
-本地定时任务 + Agent 自动化中枢（Windows）。对标 Codex app 的 Automations：既能纯规则地定时执行脚本，也能把自然语言指令交给 agent 执行（执行命令、判断结果、修复脚本后重试、提交结构化简报）。完全本地、自托管，模型供应商可自定义（Anthropic / OpenAI 两种兼容协议，如智谱 BigModel coding plan）。
+Agendum is a local scheduled-agent automation console for Windows.
 
-## 架构
+It is inspired by the automation experience in Codex app: once a workflow has become stable, you should not have to spend scarce premium-model quota running the same thing again and again. Agendum lets you paste those hardened automation prompts into a local scheduler, connect cheaper model providers, and run them as repeatable tasks with logs, memory, notifications, retries, and flexible execution rules.
 
+The name comes from Latin: **agendum** means "a thing to be done". It shares the same root as **agent**, from *agere*, "to act". That is the product in one word: things to be done, and agents that do them.
+
+## Why This Exists
+
+Codex app automations are useful because they turn recurring work into a reliable loop: wake up, inspect context, run commands, reason about failures, and report back.
+
+The pain point is quota and cost. Plus-plan capacity can be too limited for routine, already-solid workflows. Agendum is built for the middle ground:
+
+- keep the Codex-style automation shape;
+- run the work locally on your own machine;
+- use lower-cost OpenAI-compatible or Anthropic-compatible providers;
+- paste in automation prompts you have already proven in Codex;
+- add softer execution behavior, such as retries, memory injection, catch-up rules, and notifications.
+
+It is not meant to replace exploratory Codex work. It is meant to run the workflows that Codex helped you crystallize.
+
+## What It Does
+
+- **Script tasks**: run PowerShell commands on a schedule, with timeout, retries, working directory, and environment variables.
+- **Agent tasks**: run natural-language instructions through a local agent loop that can execute commands, read/write files, update task memory, and submit structured reports.
+- **Scheduling**: cron rules, fixed intervals, legal workday times, startup triggers, manual runs, and webhook triggers.
+- **Flexible catch-up**: choose whether a task should run once after missed schedules or skip missed runs.
+- **Memory**: each agent report can become task memory and be injected into future runs.
+- **Providers**: configure model providers using Anthropic-compatible or OpenAI-compatible protocols.
+- **Notifications**: Feishu/Lark webhook, lark-cli command templates, ServerChan, and Windows toast notifications.
+- **Run evidence**: inspect run history, script logs, agent transcripts, summaries, failures, and memory entries.
+- **Local-first**: daemon listens on `127.0.0.1` and stores data in a local SQLite database.
+
+## Architecture
+
+```text
+tray/smardydy-tray.ps1
+  Windows tray supervisor. Starts and monitors the daemon, shows health,
+  auto-restarts on failure, and opens the local UI.
+
+src/daemon
+  Bun + TypeScript daemon on http://127.0.0.1:8787
+  - scheduler: cron, interval, startup, webhook, catch-up
+  - runner/script: PowerShell command execution
+  - runner/agent: model loop, tool calls, memory, structured report
+  - notify: Feishu/Lark, lark-cli, ServerChan, Windows toast
+  - api: REST API and static web UI hosting
+
+web
+  React + Vite + Ant Design management UI.
+
+data
+  Local runtime data: SQLite database, run logs, agent transcripts, holiday cache.
 ```
-┌─ 托盘守护 (tray/smardydy-tray.ps1)        开机自启入口
-│   拉起并监控 daemon，绿/红图标，掉线弹通知并自动重启（最多5次）
-│
-└─ daemon (src/daemon, Bun + TS)            http://127.0.0.1:8787
-    ├─ scheduler   cron / 固定间隔 / 启动时触发；补跑策略；重叠跳过
-    ├─ runner      script: PowerShell 执行 + 重试 + 超时
-    │              agent:  自研 agent loop（双协议 provider）
-    │                      工具: run_command / read_file / write_file / update_memory / report
-    ├─ memory      简报即记忆：每次运行简报自动沉淀，下次运行注入；agent 可写长期备忘
-    ├─ notify      飞书群机器人 webhook / 本机 lark-cli / Server酱 / Windows toast
-    ├─ api         REST（docs/api-contract.md）+ webhook 触发（带 token）
-    └─ 静态托管 web/dist
-web/  React + Vite + antd 中文管理界面
-data/ smardydy.db（SQLite）、logs/（运行日志与 agent 轨迹）、tray.log
-```
 
-## 使用
+## Privacy And Local Data
+
+Local API keys, configured tasks, webhook tokens, notification secrets, run records, logs, and agent transcripts live in `data/smardydy.db` and `data/logs/`.
+
+Those files are intentionally ignored by git:
+
+- `data/*.db`
+- `data/*.db-*`
+- `data/logs/`
+- `data/tray.log`
+- `.env*`
+- `node_modules/`
+- `web/dist/`
+- `build/`
+- `release/`
+
+Before packaging or publishing, run:
 
 ```powershell
-bun install && bun run --cwd web install   # 首次
-bun run build:web                          # 构建前端
-.\scripts\install-autostart.ps1            # 注册开机自启并启动托盘（托盘会拉起 daemon）
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\audit-private-data.ps1
 ```
 
-打开 http://127.0.0.1:8787 ：
+The audit checks that local databases, run records, dependency folders, build outputs, env files, and high-confidence secret patterns are not tracked.
 
-1. 「Provider」页添加模型供应商（如智谱 anthropic 协议：baseUrl `https://open.bigmodel.cn/api/anthropic`）；
-2. 「通知渠道」页按需添加渠道并测试；
-3. 「任务」页新建任务：script 填 PowerShell 命令；agent 填自然语言指令，配置调度、补跑策略、资源上限（最大轮数/超时）、记忆注入和通知绑定。
+## Quick Start For Development
 
-开发：`bun run daemon` 起后端，`bun run dev:web` 起前端（Vite 已代理 API）。
+Requirements:
 
-## 行为约定
+- Windows
+- Bun
+- PowerShell 5.1 or later
 
-- 调度为本地时区；同一任务上次还在跑时到点自动跳过本次。
-- 「错过补跑」：daemon 启动/休眠唤醒后，错过超过 10 分钟的调度按任务的补跑策略处理（run_once 补一次 / skip 跳过），同一周期只补一次。
-- agent 任务结束必须提交 report（success/summary/details），简报自动写入任务记忆；记忆在 Web UI 任务详情页可查看、可删除。
-- 运行历史每任务保留最近 200 条；daemon 重启会把遗留 running 状态标记为失败。
+Install dependencies:
 
-## 注意
+```powershell
+bun install
+bun run --cwd web install
+```
 
-- `tray/` 和 `scripts/` 下的 .ps1 必须保存为 **UTF-8 with BOM**（Windows PowerShell 5.1 否则会把中文读成乱码导致解析失败）。
-- daemon 仅监听 127.0.0.1；webhook 触发需任务级 token（header `X-Token` 或 query `?token=`）。
-- 本地健康探活已显式禁用系统代理（代理会把"连接被拒"包装成 502）。
-- `test/mock-llm.ts`：本地 mock LLM（双协议），用于不耗 API 额度地端到端测试 agent loop。
+Run in development:
+
+```powershell
+bun run daemon
+bun run dev:web
+```
+
+Open:
+
+```text
+http://127.0.0.1:8787
+```
+
+Build the web UI:
+
+```powershell
+bun run build:web
+```
+
+Install tray autostart for the current checkout:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-autostart.ps1
+```
+
+Remove tray autostart:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall-autostart.ps1
+```
+
+## First Run
+
+1. Open `http://127.0.0.1:8787`.
+2. Go to **Provider** and add a model provider.
+   - Anthropic-compatible example: `https://open.bigmodel.cn/api/anthropic`
+   - OpenAI-compatible example: `https://api.openai.com/v1`
+3. Go to **通知渠道** and add notification channels if needed.
+4. Go to **任务** and create a task.
+   - Use `script` for deterministic PowerShell jobs.
+   - Use `agent` for flexible natural-language workflows.
+5. Configure schedule, catch-up behavior, timeout, memory injection, and notification rules.
+
+You can paste a stable Codex automation prompt into an Agent task and let Agendum run it on your own cadence.
+
+## Windows Installer
+
+Agendum can be packaged into a Windows installer exe.
+
+Build staging files and the installer:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows-installer.ps1 -Version 0.1.0
+```
+
+Output:
+
+```text
+release\AgendumSetup-0.1.0.exe
+```
+
+The installer includes:
+
+- compiled `agendum-daemon.exe`;
+- built `web/dist` UI;
+- tray supervisor script;
+- autostart install/uninstall scripts;
+- holiday data cache.
+
+It does **not** include your local database, API keys, configured tasks, run logs, or memory records.
+
+If Inno Setup is missing, the build script will generate:
+
+```text
+build\windows\Agendum
+```
+
+Then install Inno Setup and rerun the script:
+
+```text
+https://jrsoftware.org/isdl.php
+```
+
+## API
+
+See [docs/api-contract.md](docs/api-contract.md).
+
+Important endpoints:
+
+- `GET /health`
+- `GET /api/tasks`
+- `POST /api/tasks`
+- `POST /api/tasks/:id/run`
+- `GET /api/runs`
+- `GET /api/runs/:id`
+- `POST /hook/:taskId`
+
+Webhook triggers require the task-level token via `X-Token` header or `?token=`.
+
+## Behavior Notes
+
+- Schedules use local time.
+- If a task is still running when the next trigger arrives, the new run is skipped.
+- On daemon restart, stale running records are marked as failed.
+- Run history is pruned per task.
+- Agent tasks should end with a structured report. Reports can be injected into later runs as task memory.
+- The daemon listens only on `127.0.0.1`.
+
+## Project Status
+
+Agendum is a local personal automation tool. The current focus is:
+
+- robust Windows packaging;
+- reliable scheduled execution;
+- cheaper-provider compatibility;
+- convenient migration of proven Codex automation prompts;
+- clear run evidence and memory management.

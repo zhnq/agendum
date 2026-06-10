@@ -1,7 +1,8 @@
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Task } from '../../shared/types';
-import { LOG_DIR, type FinishRunArgs } from '../db';
+import type { FinishRunArgs } from '../db';
+import { LOG_DIR } from '../paths';
 
 export function runLogPath(runId: number, ext: 'log' | 'jsonl') {
   return join(LOG_DIR, `run-${runId}.${ext}`);

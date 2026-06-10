@@ -1,5 +1,5 @@
 {
-  "name": "smardydy",
+  "name": "agendum",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,9 @@
     "daemon": "bun run src/daemon/index.ts",
     "dev:web": "bun run --cwd web dev",
     "build:web": "bun run --cwd web build",
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit",
+    "audit:private": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/audit-private-data.ps1",
+    "package:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows-installer.ps1"
   },
   "dependencies": {
     "cron-parser": "^4.9.0"

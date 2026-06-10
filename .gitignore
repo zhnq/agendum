@@ -4,6 +4,9 @@ web/node_modules/
 dist/
 web/dist/
 output/
+build/
+release/
+*.exe
 
 .env
 .env.*

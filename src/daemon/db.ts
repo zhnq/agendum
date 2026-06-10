@@ -1,13 +1,12 @@
 import { Database } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { DATA_DIR, LOG_DIR } from './paths';
 import type {
   Channel, ChannelInput, MemoryEntry, MemoryKind, Provider, ProviderInput,
   Run, RunReport, RunStatus, RunTrigger, Task, TaskInput,
 } from '../shared/types';
 
-export const DATA_DIR = join(import.meta.dir, '..', '..', 'data');
-export const LOG_DIR = join(DATA_DIR, 'logs');
 mkdirSync(LOG_DIR, { recursive: true });
 
 const db = new Database(join(DATA_DIR, 'smardydy.db'));

@@ -3,7 +3,7 @@
 // 拉取后缓存到 data/holidays/<year>.json；无数据时退化为周一~周五。
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DATA_DIR } from './db';
+import { DATA_DIR } from './paths';
 
 const HOLIDAY_DIR = join(DATA_DIR, 'holidays');
 mkdirSync(HOLIDAY_DIR, { recursive: true });

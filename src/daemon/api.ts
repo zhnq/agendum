@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { RunDetail, TaskInput, TranscriptEvent } from '../shared/types';
 import * as db from './db';
 import { sendToChannel } from './notify';
@@ -7,9 +6,9 @@ import { executeTask } from './runner';
 import { chat } from './runner/agent/providers';
 import { runPowerShell } from './runner/script';
 import type { Scheduler } from './scheduler';
+import { WEB_DIST } from './paths';
 
 export const PORT = Number(process.env.SMARDYDY_PORT || 8787);
-const WEB_DIST = join(import.meta.dir, '..', '..', 'web', 'dist');
 const VERSION = '0.1.0';
 const startedAt = new Date().toISOString();
 
