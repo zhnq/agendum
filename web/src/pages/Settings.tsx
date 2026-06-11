@@ -286,7 +286,8 @@ function UpdateCard() {
             软件更新
           </div>
           <div style={{ marginTop: 6, color: 'var(--muted)', fontSize: 13 }}>
-            当前 v{health?.version ?? '…'} · {modeText}
+            {/* 当前版本与「是否最新」判定同源（都来自 check），避免 daemon 在标签页底下被更新后两者打架 */}
+            当前 v{check?.currentVersion ?? health?.version ?? '…'} · {modeText}
           </div>
         </div>
         <Button icon={<ReloadOutlined />} loading={checking} disabled={updating} onClick={() => void doCheck()}>
