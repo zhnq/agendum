@@ -26,7 +26,7 @@ function buildMemorySection(task: Task): string {
 }
 
 function buildSystemPrompt(task: Task): string {
-  return `你是 smardydy 自动化系统的任务执行 agent，正在无人值守地执行定时任务「${task.name}」。
+  return `你是 Agendum 自动化系统的任务执行 agent，正在无人值守地执行定时任务「${task.name}」。
 
 环境：Windows 11；run_command 工具使用 PowerShell 语法；当前时间 ${new Date().toString()}；默认工作目录 ${task.workdir ?? process.cwd()}。
 

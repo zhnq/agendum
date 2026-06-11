@@ -1,13 +1,7 @@
 import { join } from 'node:path';
+import type { AutostartStatus } from '../shared/types';
 import { APP_ROOT } from './paths';
 import { runPowerShell } from './runner/script';
-
-export interface AutostartStatus {
-  supported: boolean;
-  enabled: boolean;
-  command: string | null;
-  legacyEnabled: boolean;
-}
 
 const RUN_KEY = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
 const APP_NAME = 'Agendum';

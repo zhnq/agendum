@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Verify tag matches package.json
+        shell: pwsh
+        run: |
+          $pkg = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $tag = '${{ github.ref_name }}'.TrimStart('v')
+          if ($pkg -ne $tag) { throw "package.json version ($pkg) != tag ($tag) — bump package.json before tagging" }
+
+      - name: Install deps
+        run: |
+          bun install --frozen-lockfile
+          bun install --frozen-lockfile --cwd web
+
+      - name: Ensure Inno Setup
+        shell: pwsh
+        run: |
+          $found = (Get-Command ISCC.exe -ErrorAction SilentlyContinue) -or (Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe')
+          if (-not $found) { choco install innosetup -y --no-progress }
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows-installer.ps1 -Version $version
+          if (-not (Test-Path "release/AgendumSetup-$version.exe")) { throw 'installer not produced' }
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/AgendumSetup-*.exe
+          generate_release_notes: true

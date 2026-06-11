@@ -35,4 +35,17 @@ Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Fil
 Filename: "http://127.0.0.1:8787"; Description: "打开 Agendum"; Flags: postinstall shellexec skipifsilent
 
 [UninstallRun]
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\stop-agendum.ps1"""; WorkingDir: "{app}"; Flags: runhidden; RunOnceId: "AgendumStop"
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\uninstall-autostart.ps1"""; WorkingDir: "{app}"; Flags: runhidden; RunOnceId: "AgendumUninstallAutostart"
+
+[Code]
+// 升级安装前停掉正在运行的托盘和 daemon，否则 agendum-daemon.exe 被占用会导致 [Files] 复制失败
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Exec('powershell.exe',
+    '-NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq ''powershell.exe'' -and $_.CommandLine -match ''smardydy-tray'' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := '';
+end;

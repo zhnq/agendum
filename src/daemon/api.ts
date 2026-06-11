@@ -8,10 +8,11 @@ import { executeTask } from './runner';
 import { chat } from './runner/agent/providers';
 import { runPowerShell } from './runner/script';
 import type { Scheduler } from './scheduler';
-import { WEB_DIST } from './paths';
+import { IS_COMPILED, WEB_DIST } from './paths';
+import { applyUpdate, checkUpdate, getUpdateStatus, VERSION } from './update';
+import { PORT } from './config';
 
-export const PORT = Number(process.env.SMARDYDY_PORT || 8787);
-const VERSION = '0.1.0';
+export { PORT };
 const startedAt = new Date().toISOString();
 
 const CORS_HEADERS = {
@@ -81,7 +82,7 @@ async function serveStatic(pathname: string): Promise<Response> {
   let filePath = join(WEB_DIST, safe === '/' ? 'index.html' : safe);
   if (!existsSync(filePath)) filePath = join(WEB_DIST, 'index.html'); // SPA fallback
   if (!existsSync(filePath)) {
-    return new Response('smardydy daemon 运行中。Web UI 尚未构建（bun run build:web）。', {
+    return new Response('Agendum daemon 运行中。Web UI 尚未构建（bun run build:web）。', {
       status: 200, headers: { 'content-type': 'text/plain; charset=utf-8' },
     });
   }
@@ -102,7 +103,25 @@ export function startServer(scheduler: Scheduler) {
       try {
         // ---- health ----
         if (pathname === '/health') {
-          return json({ ok: true, version: VERSION, startedAt, runningCount: db.runningCount() });
+          return json({
+            ok: true,
+            version: VERSION,
+            startedAt,
+            runningCount: db.runningCount(),
+            mode: IS_COMPILED ? 'installer' : 'source',
+          });
+        }
+
+        // ---- 软件更新 ----
+        if (pathname === '/api/update/check' && method === 'POST') {
+          return json(await checkUpdate());
+        }
+        if (pathname === '/api/update/apply' && method === 'POST') {
+          await applyUpdate();
+          return json({ started: true });
+        }
+        if (pathname === '/api/update/status' && method === 'GET') {
+          return json(getUpdateStatus());
         }
 
         // ---- settings ----
@@ -133,7 +152,7 @@ export function startServer(scheduler: Scheduler) {
 Add-Type -AssemblyName System.Windows.Forms
 $owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true }
 $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
-$dlg.Description = 'smardydy：选择任务工作目录'
+$dlg.Description = 'Agendum：选择任务工作目录'
 $dlg.ShowNewFolderButton = $true
 if ($dlg.ShowDialog($owner) -eq 'OK') { Write-Output $dlg.SelectedPath }
 $owner.Dispose()
@@ -257,7 +276,7 @@ $owner.Dispose()
           const c = db.getChannel(Number(m[1]));
           if (!c) return err('渠道不存在', 404);
           try {
-            await sendToChannel(c, '[smardydy] 测试通知', `渠道「${c.name}」配置正常 · ${new Date().toLocaleString()}`);
+            await sendToChannel(c, '[Agendum] 测试通知', `渠道「${c.name}」配置正常 · ${new Date().toLocaleString()}`);
             return json({ ok: true });
           } catch (e) {
             return json({ ok: false, error: String(e).slice(0, 500) });

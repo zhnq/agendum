@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$Version = '0.1.0',
   [switch]$SkipInstaller
 )
@@ -49,6 +49,7 @@ try {
   New-Item -ItemType Directory -Force -Path (Join-Path $stage 'scripts') | Out-Null
   Copy-Item -LiteralPath (Join-Path $root 'scripts\install-autostart.ps1') -Destination (Join-Path $stage 'scripts\install-autostart.ps1')
   Copy-Item -LiteralPath (Join-Path $root 'scripts\uninstall-autostart.ps1') -Destination (Join-Path $stage 'scripts\uninstall-autostart.ps1')
+  Copy-Item -LiteralPath (Join-Path $root 'scripts\stop-agendum.ps1') -Destination (Join-Path $stage 'scripts\stop-agendum.ps1')
   Copy-Item -LiteralPath (Join-Path $root 'README.md') -Destination (Join-Path $stage 'README.md')
 
   if ($SkipInstaller) {

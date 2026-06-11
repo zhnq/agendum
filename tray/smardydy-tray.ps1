@@ -1,4 +1,4 @@
-# Agendum 托盘守护进程
+﻿# Agendum 托盘守护进程
 # 职责：拉起并监控 daemon，托盘图标显示状态（绿=运行中 红=掉线），掉线弹通知并自动重启。
 $ErrorActionPreference = 'SilentlyContinue'
 Add-Type -AssemblyName System.Windows.Forms

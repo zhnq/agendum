@@ -11,7 +11,7 @@ export async function dispatchNotifications(task: Task, run: Run) {
     if (!want) continue;
     const channel = db.getChannel(binding.channelId);
     if (!channel) continue;
-    const title = `[smardydy] ${task.name}：${ok ? '✅ 成功' : '❌ 失败'}`;
+    const title = `[Agendum] ${task.name}：${ok ? '✅ 成功' : '❌ 失败'}`;
     const body = formatBody(run);
     try {
       await sendToChannel(channel, title, body);
@@ -87,7 +87,7 @@ $texts = $xml.GetElementsByTagName('text')
 $texts.Item(0).AppendChild($xml.CreateTextNode($env:SMARDYDY_TOAST_TITLE)) | Out-Null
 $texts.Item(1).AppendChild($xml.CreateTextNode($env:SMARDYDY_TOAST_BODY)) | Out-Null
 $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('smardydy').Show($toast)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Agendum').Show($toast)
 `;
   const r = await runPowerShell(script, {
     env: { SMARDYDY_TOAST_TITLE: title, SMARDYDY_TOAST_BODY: body.slice(0, 200) },

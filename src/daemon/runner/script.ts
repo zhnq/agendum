@@ -47,7 +47,7 @@ export async function runPowerShell(
   clearTimeout(killer);
   let output = stdout;
   if (stderr.trim()) output += (output ? '\n' : '') + '[stderr]\n' + stderr;
-  if (timedOut) output += '\n[smardydy] 命令超时被终止';
+  if (timedOut) output += '\n[agendum] 命令超时被终止';
   return { exitCode, output, timedOut };
 }
 

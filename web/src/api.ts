@@ -12,6 +12,8 @@ import type {
   ChannelInput,
   Health,
   AutostartStatus,
+  UpdateCheck,
+  UpdateStatus,
 } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -57,6 +59,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ enabled }),
     }),
+
+  // 软件更新
+  checkUpdate: () => request<UpdateCheck>('/api/update/check', { method: 'POST' }),
+  applyUpdate: () => request<{ started: true }>('/api/update/apply', { method: 'POST' }),
+  updateStatus: () => request<UpdateStatus>('/api/update/status'),
 
   // 本机文件夹选择框（由 daemon 弹出原生对话框）
   pickFolder: () => request<{ path: string | null }>('/api/pick-folder', { method: 'POST' }),

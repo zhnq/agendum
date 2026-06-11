@@ -8,6 +8,8 @@ function executableRoot(): string | null {
   return dirname(exe);
 }
 
+/** true = 以 bun build --compile 出的 agendum-daemon.exe 运行（安装版）；false = 源码 bun run */
+export const IS_COMPILED = executableRoot() !== null;
 export const APP_ROOT = process.env.AGENDUM_ROOT || executableRoot() || sourceRoot;
 export const DATA_DIR = process.env.AGENDUM_DATA_DIR || join(APP_ROOT, 'data');
 export const LOG_DIR = join(DATA_DIR, 'logs');

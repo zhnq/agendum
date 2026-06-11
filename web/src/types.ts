@@ -1,4 +1,4 @@
-// smardydy 前后端共享类型 —— API 的唯一契约来源
+// Agendum 前后端共享类型 —— API 的唯一契约来源
 // 前端复制本文件到 web/src/types.ts 使用，修改时两侧同步。
 
 export type TaskType = 'script' | 'agent';
@@ -159,6 +159,46 @@ export interface Health {
   startedAt: string;
   /** 正在运行中的 run 数 */
   runningCount: number;
+  /** source = bun run 源码运行；installer = 编译版 agendum-daemon.exe */
+  mode: UpdateMode;
+}
+
+// ---- 软件更新（纯手动；public 仓库，匿名 GitHub API）----
+export type UpdateMode = 'source' | 'installer';
+export type UpdatePhase =
+  | 'idle'
+  | 'pulling'
+  | 'installing_deps'
+  | 'building'
+  | 'downloading'
+  | 'handoff'
+  | 'restarting'
+  | 'failed';
+
+export interface UpdateStatus {
+  phase: UpdatePhase;
+  detail: string | null;
+  error: string | null;
+  startedAt: string | null;
+}
+
+export interface UpdateCheck {
+  mode: UpdateMode;
+  currentVersion: string;
+  /** 最新 release 的 tag（如 v0.2.0），仓库无 release 时为 null */
+  latestTag: string | null;
+  latestVersion: string | null;
+  releaseName: string | null;
+  publishedAt: string | null;
+  /** release notes（截断到 4000 字符） */
+  notes: string | null;
+  /** release 上的安装包资产名（仅 installer 模式更新需要） */
+  assetName: string | null;
+  /** 落后上游的提交数（仅 source 模式） */
+  behindCommits: number | null;
+  /** 最新一条待拉取提交的标题（仅 source 模式） */
+  incomingSummary: string | null;
+  hasUpdate: boolean;
 }
 
 export interface AutostartStatus {

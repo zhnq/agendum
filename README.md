@@ -178,6 +178,33 @@ Then install Inno Setup and rerun the script:
 https://jrsoftware.org/isdl.php
 ```
 
+## Releases Via GitHub Actions
+
+You do not need to build installers locally. Pushing a version tag builds and publishes everything on GitHub:
+
+1. Bump `version` in `package.json` (the daemon reports this version on `/health`).
+2. Commit, then tag and push:
+
+```powershell
+git tag v0.2.0
+git push origin master --tags
+```
+
+The `Release` workflow (`.github/workflows/release.yml`) runs on `windows-latest`, compiles `agendum-daemon.exe`, builds the web UI, produces `AgendumSetup-<version>.exe` with Inno Setup, and attaches it to a GitHub Release. The workflow fails fast if the tag does not match `package.json`.
+
+The `CI` workflow runs on every push: daemon typecheck, web build, and a guard that every tracked `.ps1` carries a UTF-8 BOM (Windows PowerShell 5.1 parses BOM-less files as ANSI and fails on Chinese text).
+
+## Software Updates
+
+Updates are strictly manual: the daemon never phones home on its own. Go to **设置 → 软件更新**, click **检查更新**, review, then click **立即更新**.
+
+The mechanism depends on how Agendum is running (auto-detected, shown on the Settings page):
+
+- **Installed (compiled exe)**: checks the latest GitHub Release, downloads `AgendumSetup-*.exe`, then hands off to a detached updater that stops the tray and daemon, runs the installer silently, and lets the installer bring everything back up.
+- **From source (`bun run`)**: checks how far the checkout is behind `origin`, then `git pull --ff-only`, reinstalls dependencies, rebuilds the web UI, and restarts the daemon.
+
+Updating is refused while any task run is in progress. The repository is public, so update checks use the anonymous GitHub API and need no credentials.
+
 ## API
 
 See [docs/api-contract.md](docs/api-contract.md).
