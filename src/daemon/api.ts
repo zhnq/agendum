@@ -154,6 +154,39 @@ export function startServer(scheduler: Scheduler) {
           }
         }
 
+        // ---- 备份导出 / 导入 ----
+        if (pathname === '/api/backup/export' && method === 'GET') {
+          const payload = {
+            app: 'agendum',
+            schema: 1,
+            version: VERSION,
+            exportedAt: new Date().toISOString(),
+            ...db.exportBackup(),
+          };
+          const gz = Bun.gzipSync(new TextEncoder().encode(JSON.stringify(payload)));
+          const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
+          return new Response(gz, {
+            headers: {
+              'content-type': 'application/gzip',
+              'content-disposition': `attachment; filename="agendum-backup-${stamp}.json.gz"`,
+              ...CORS_HEADERS,
+            },
+          });
+        }
+        if (pathname === '/api/backup/import' && method === 'POST') {
+          const buf = new Uint8Array(await req.arrayBuffer());
+          if (!buf.length) return err('请求体为空');
+          let text: string;
+          try {
+            text = new TextDecoder().decode(Bun.gunzipSync(buf));
+          } catch {
+            text = new TextDecoder().decode(buf); // 兼容未压缩的 .json
+          }
+          const counts = db.importBackup(JSON.parse(text));
+          for (const t of db.listTasks()) scheduler.refreshTask(t.id);
+          return json(counts);
+        }
+
         // ---- webhook 触发 ----
         const hook = pathname.match(/^\/hook\/(\d+)$/);
         if (hook && method === 'POST') {

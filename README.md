@@ -178,6 +178,12 @@ Then install Inno Setup and rerun the script:
 https://jrsoftware.org/isdl.php
 ```
 
+## Backup And Restore
+
+**设置 → 备份与恢复** exports the entire state as a single small `agendum-backup-<timestamp>.json.gz`: tasks (with webhook tokens), providers (with API keys — guard the file), notification channels, run history rows, task memory, and all settings including proxy configuration. On-disk run logs and the re-fetchable holiday cache are not included.
+
+Import replaces all existing data in one transaction and refreshes the schedule. Backups are validated by schema version, so older backups keep importing into newer Agendum builds.
+
 ## Releases Via GitHub Actions
 
 You do not need to build installers locally. Pushing a version tag builds and publishes everything on GitHub:

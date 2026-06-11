@@ -61,6 +61,24 @@ export const api = {
       body: JSON.stringify({ enabled }),
     }),
 
+  // 备份（导出直接用 <a href="/api/backup/export"> 下载）
+  importBackup: async (file: Blob) => {
+    const res = await fetch('/api/backup/import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: file,
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(
+        data && typeof (data as { error?: unknown }).error === 'string'
+          ? (data as { error: string }).error
+          : `导入失败（HTTP ${res.status}）`,
+      );
+    }
+    return data as Record<string, number>;
+  },
+
   // 网络代理
   getProxy: () => request<ProxySettings>('/api/settings/proxy'),
   setProxy: (input: ProxySettings) =>

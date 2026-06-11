@@ -3,11 +3,15 @@ import { Alert, Button, Input, message, Popconfirm, Space, Switch } from 'antd';
 import {
   CloudDownloadOutlined,
   ExperimentOutlined,
+  ExportOutlined,
   GlobalOutlined,
+  ImportOutlined,
   PoweroffOutlined,
   ReloadOutlined,
+  SaveOutlined,
   SyncOutlined,
 } from '@ant-design/icons';
+import { Modal, Upload } from 'antd';
 import { api } from '../api';
 import type { AutostartStatus, Health, ProxySettings, UpdateCheck } from '../types';
 
@@ -21,6 +25,62 @@ const PHASE_LABELS: Record<string, string> = {
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function BackupCard() {
+  const [importing, setImporting] = useState(false);
+
+  const doImport = (file: File) => {
+    Modal.confirm({
+      title: '确认导入备份？',
+      content: '导入会整体覆盖现有数据：任务、Provider、通知渠道、运行历史、任务记忆与全部设置项。',
+      okText: '覆盖导入',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: async () => {
+        setImporting(true);
+        try {
+          const counts = await api.importBackup(file);
+          message.success(
+            `导入完成：任务 ${counts.tasks} · Provider ${counts.providers} · 渠道 ${counts.channels} · 运行 ${counts.runs} · 记忆 ${counts.memory}`,
+          );
+          setTimeout(() => window.location.reload(), 1200);
+        } catch (e) {
+          message.error((e as Error).message);
+        } finally {
+          setImporting(false);
+        }
+      },
+    });
+    return false; // 阻止 antd Upload 自己发请求
+  };
+
+  return (
+    <div className="panel panel-pad">
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 16 }}>
+            <SaveOutlined />
+            备份与恢复
+          </div>
+          <div style={{ marginTop: 6, color: 'var(--muted)', fontSize: 13 }}>
+            单文件 json.gz：任务 / Provider / 渠道 / 运行历史 / 记忆 / 设置。含 API Key 与 webhook
+            token，注意保管；不含磁盘日志
+          </div>
+        </div>
+        <Space>
+          <Button icon={<ExportOutlined />} href="/api/backup/export">
+            导出
+          </Button>
+          <Upload accept=".gz,.json" showUploadList={false} beforeUpload={doImport}>
+            <Button icon={<ImportOutlined />} loading={importing}>
+              导入
+            </Button>
+          </Upload>
+        </Space>
+      </div>
+    </div>
+  );
+}
 
 function ProxyCard() {
   const [settings, setSettings] = useState<ProxySettings | null>(null);
@@ -383,6 +443,7 @@ export default function Settings() {
       </div>
 
       <ProxyCard />
+      <BackupCard />
       <UpdateCard />
     </Space>
   );

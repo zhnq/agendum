@@ -367,6 +367,89 @@ export function deleteChannel(id: number) {
   db.query('DELETE FROM channels WHERE id=?').run(id);
 }
 
+// ---------- backup ----------
+
+/** 全量导出（不含磁盘上的运行日志文件与节假日缓存） */
+export function exportBackup() {
+  return {
+    providers: listProviders(),
+    channels: listChannels(),
+    tasks: listTasks(),
+    runs: (db.query('SELECT * FROM runs ORDER BY id').all() as any[]).map(rowToRun),
+    memory: (db.query('SELECT * FROM memory ORDER BY id').all() as any[]).map(rowToMemory),
+    settings: Object.fromEntries(
+      (db.query('SELECT key, value FROM settings').all() as any[]).map((r) => [r.key, r.value]),
+    ) as Record<string, string>,
+  };
+}
+
+/** 全量导入：事务内清空重建，保留原 id 以维持 provider/channel/task/run 间关联 */
+export function importBackup(b: any): Record<string, number> {
+  if (b?.app !== 'agendum' || typeof b.schema !== 'number') {
+    throw new Error('不是有效的 Agendum 备份文件');
+  }
+  if (b.schema > 1) {
+    throw new Error(`备份 schema v${b.schema} 比当前程序支持的新，请先更新 Agendum`);
+  }
+  const providers: any[] = Array.isArray(b.providers) ? b.providers : [];
+  const channels: any[] = Array.isArray(b.channels) ? b.channels : [];
+  const tasks: any[] = Array.isArray(b.tasks) ? b.tasks : [];
+  const runs: any[] = Array.isArray(b.runs) ? b.runs : [];
+  const memory: any[] = Array.isArray(b.memory) ? b.memory : [];
+  const settings: Record<string, string> =
+    b.settings && typeof b.settings === 'object' ? b.settings : {};
+
+  const tx = db.transaction(() => {
+    db.exec('DELETE FROM tasks; DELETE FROM runs; DELETE FROM memory; DELETE FROM providers; DELETE FROM channels; DELETE FROM settings;');
+    for (const p of providers) {
+      db.query('INSERT INTO providers (id, name, protocol, base_url, api_key, model, is_default, proxy, created_at) VALUES (?,?,?,?,?,?,?,?,?)')
+        .run(p.id, p.name, p.protocol, p.baseUrl, p.apiKey, p.model, p.isDefault ? 1 : 0, normProxyOverride(p.proxy), p.createdAt ?? nowIso());
+    }
+    for (const c of channels) {
+      db.query('INSERT INTO channels (id, name, type, config, created_at) VALUES (?,?,?,?,?)')
+        .run(c.id, c.name, c.type, JSON.stringify(c.config ?? {}), c.createdAt ?? nowIso());
+    }
+    for (const t of tasks) {
+      db.query(`INSERT INTO tasks (id, name, type, enabled, workdir, env, schedule, webhook_token, catch_up,
+        timeout_sec, command, retries, prompt, provider_id, model, max_turns, inject_memory, memory_reports,
+        notifications, last_run_at, next_due_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(
+          t.id, t.name, t.type, t.enabled ? 1 : 0, t.workdir ?? null, JSON.stringify(t.env ?? {}),
+          JSON.stringify(t.schedule ?? {}), t.webhookToken ?? null, t.catchUp === 'run_once' ? 'run_once' : 'skip',
+          t.timeoutSec ?? 300, t.command ?? null, t.retries ?? 0, t.prompt ?? null, t.providerId ?? null,
+          t.model ?? null, t.maxTurns ?? 30, t.injectMemory === false ? 0 : 1, t.memoryReports ?? 5,
+          JSON.stringify(t.notifications ?? []), t.lastRunAt ?? null, t.nextDueAt ?? null,
+          t.createdAt ?? nowIso(), t.updatedAt ?? nowIso(),
+        );
+    }
+    for (const r of runs) {
+      // 备份里残留的 running 状态没有意义，落库为失败；日志文件不随备份迁移
+      const status = r.status === 'running' ? 'failure' : r.status;
+      const error = r.status === 'running' ? '导入自备份，原运行中断' : (r.error ?? null);
+      db.query('INSERT INTO runs (id, task_id, trigger, status, started_at, finished_at, exit_code, report, error, log_path) VALUES (?,?,?,?,?,?,?,?,?,NULL)')
+        .run(r.id, r.taskId, r.trigger, status, r.startedAt, r.finishedAt ?? null, r.exitCode ?? null,
+          r.report ? JSON.stringify(r.report) : null, error);
+    }
+    for (const m of memory) {
+      db.query('INSERT INTO memory (id, task_id, run_id, kind, content, created_at) VALUES (?,?,?,?,?,?)')
+        .run(m.id, m.taskId, m.runId ?? null, m.kind, m.content, m.createdAt ?? nowIso());
+    }
+    for (const [k, v] of Object.entries(settings)) {
+      db.query('INSERT INTO settings (key, value) VALUES (?,?)').run(k, String(v));
+    }
+  });
+  tx();
+
+  return {
+    providers: providers.length,
+    channels: channels.length,
+    tasks: tasks.length,
+    runs: runs.length,
+    memory: memory.length,
+    settings: Object.keys(settings).length,
+  };
+}
+
 // ---------- settings (key-value) ----------
 
 export function getSetting(key: string): string | null {
