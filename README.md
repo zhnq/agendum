@@ -1,5 +1,7 @@
 # Agendum
 
+English | [中文](README.zh-CN.md)
+
 Agendum is a local scheduled-agent automation console for Windows.
 
 It is inspired by the automation experience in Codex app: once a workflow has become stable, you should not have to spend scarce premium-model quota running the same thing again and again. Agendum lets you paste those hardened automation prompts into a local scheduler, connect cheaper model providers, and run them as repeatable tasks with logs, memory, notifications, retries, and flexible execution rules.
@@ -178,9 +180,13 @@ Then install Inno Setup and rerun the script:
 https://jrsoftware.org/isdl.php
 ```
 
+## Network Proxy
+
+**Settings → 网络代理** configures one proxy URL with a master switch and two scopes: **GitHub traffic** (update check/download, `git fetch/pull`, holiday data) and **agent calls**. Each provider can additionally override the agent scope (follow global / force proxy / force direct), so domestic direct-connect providers and overseas proxied providers coexist. Notification channels always connect directly. Since git ignores in-process proxy settings, network git commands automatically get `-c http(s).proxy` injected.
+
 ## Backup And Restore
 
-**设置 → 备份与恢复** exports the entire state as a single small `agendum-backup-<timestamp>.json.gz`: tasks (with webhook tokens), providers (with API keys — guard the file), notification channels, run history rows, task memory, and all settings including proxy configuration. On-disk run logs and the re-fetchable holiday cache are not included.
+**Settings → 备份与恢复** exports the entire state as a single small `agendum-backup-<timestamp>.json.gz`: tasks (with webhook tokens), providers (with API keys — guard the file), notification channels, run history rows, task memory, and all settings including proxy configuration. On-disk run logs and the re-fetchable holiday cache are not included.
 
 Import replaces all existing data in one transaction and refreshes the schedule. Backups are validated by schema version, so older backups keep importing into newer Agendum builds.
 
