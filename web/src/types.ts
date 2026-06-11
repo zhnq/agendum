@@ -122,6 +122,9 @@ export interface MemoryEntry {
   createdAt: string;
 }
 
+/** provider 级代理策略：跟随全局「Agent 调用」分项 / 强制走代理 / 强制直连 */
+export type ProxyOverride = 'follow' | 'proxy' | 'direct';
+
 export interface Provider {
   id: number;
   name: string;
@@ -132,6 +135,7 @@ export interface Provider {
   /** 默认模型名 */
   model: string;
   isDefault: boolean;
+  proxy: ProxyOverride;
   createdAt: string;
 }
 
@@ -199,6 +203,17 @@ export interface UpdateCheck {
   /** 最新一条待拉取提交的标题（仅 source 模式） */
   incomingSummary: string | null;
   hasUpdate: boolean;
+}
+
+// ---- 网络代理 ----
+// 总开关关 = 全部直连。开启后按分项决定：GitHub 流量（更新检查/下载、git、节假日数据）、
+// Agent 调用（可被 provider 的 ProxyOverride 覆盖）。通知渠道均为国内/本地，恒直连。
+export interface ProxySettings {
+  /** 如 http://127.0.0.1:7890；null = 未配置 */
+  url: string | null;
+  enabled: boolean;
+  useForGithub: boolean;
+  useForAgent: boolean;
 }
 
 export interface AutostartStatus {

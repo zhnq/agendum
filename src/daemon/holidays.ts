@@ -4,6 +4,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DATA_DIR } from './paths';
+import { githubProxy } from './proxy';
 
 const HOLIDAY_DIR = join(DATA_DIR, 'holidays');
 mkdirSync(HOLIDAY_DIR, { recursive: true });
@@ -35,7 +36,10 @@ async function fetchYear(year: number): Promise<boolean> {
   ];
   for (const url of urls) {
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+      const res = await fetch(url, {
+        proxy: githubProxy() ?? undefined,
+        signal: AbortSignal.timeout(10_000),
+      });
       if (!res.ok) continue;
       const raw = await res.text();
       if (!parseInto(year, raw)) continue;

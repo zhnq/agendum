@@ -14,6 +14,7 @@ import type {
   AutostartStatus,
   UpdateCheck,
   UpdateStatus,
+  ProxySettings,
 } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -59,6 +60,16 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ enabled }),
     }),
+
+  // 网络代理
+  getProxy: () => request<ProxySettings>('/api/settings/proxy'),
+  setProxy: (input: ProxySettings) =>
+    request<ProxySettings>('/api/settings/proxy', { method: 'PUT', body: JSON.stringify(input) }),
+  testProxy: () =>
+    request<{ ok: boolean; status?: number; ms?: number; error?: string }>(
+      '/api/settings/proxy/test',
+      { method: 'POST' },
+    ),
 
   // 软件更新
   checkUpdate: () => request<UpdateCheck>('/api/update/check', { method: 'POST' }),

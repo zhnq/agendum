@@ -77,7 +77,18 @@ CREATE TABLE IF NOT EXISTS channels (
   config TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 `);
+
+// 增量迁移：老库补列（SQLite 无 IF NOT EXISTS for column）
+try {
+  db.exec("ALTER TABLE providers ADD COLUMN proxy TEXT NOT NULL DEFAULT 'follow'");
+} catch {
+  /* 列已存在 */
+}
 
 export const nowIso = () => new Date().toISOString();
 
@@ -132,9 +143,13 @@ function rowToMemory(r: any): MemoryEntry {
 function rowToProvider(r: any): Provider {
   return {
     id: r.id, name: r.name, protocol: r.protocol, baseUrl: r.base_url,
-    apiKey: r.api_key, model: r.model, isDefault: !!r.is_default, createdAt: r.created_at,
+    apiKey: r.api_key, model: r.model, isDefault: !!r.is_default,
+    proxy: r.proxy === 'proxy' || r.proxy === 'direct' ? r.proxy : 'follow',
+    createdAt: r.created_at,
   };
 }
+
+const normProxyOverride = (v: unknown) => (v === 'proxy' || v === 'direct' ? v : 'follow');
 
 function rowToChannel(r: any): Channel {
   return { id: r.id, name: r.name, type: r.type, config: JSON.parse(r.config || '{}'), createdAt: r.created_at };
@@ -307,16 +322,16 @@ function clearDefaultProvider() {
 
 export function createProvider(input: ProviderInput): Provider {
   if (input.isDefault) clearDefaultProvider();
-  const res = db.query('INSERT INTO providers (name, protocol, base_url, api_key, model, is_default, created_at) VALUES (?,?,?,?,?,?,?)')
-    .run(input.name, input.protocol, input.baseUrl, input.apiKey, input.model, input.isDefault ? 1 : 0, nowIso());
+  const res = db.query('INSERT INTO providers (name, protocol, base_url, api_key, model, is_default, proxy, created_at) VALUES (?,?,?,?,?,?,?,?)')
+    .run(input.name, input.protocol, input.baseUrl, input.apiKey, input.model, input.isDefault ? 1 : 0, normProxyOverride(input.proxy), nowIso());
   return getProvider(Number(res.lastInsertRowid))!;
 }
 
 export function updateProvider(id: number, input: ProviderInput): Provider | null {
   if (!getProvider(id)) return null;
   if (input.isDefault) clearDefaultProvider();
-  db.query('UPDATE providers SET name=?, protocol=?, base_url=?, api_key=?, model=?, is_default=? WHERE id=?')
-    .run(input.name, input.protocol, input.baseUrl, input.apiKey, input.model, input.isDefault ? 1 : 0, id);
+  db.query('UPDATE providers SET name=?, protocol=?, base_url=?, api_key=?, model=?, is_default=?, proxy=? WHERE id=?')
+    .run(input.name, input.protocol, input.baseUrl, input.apiKey, input.model, input.isDefault ? 1 : 0, normProxyOverride(input.proxy), id);
   return getProvider(id);
 }
 
@@ -350,4 +365,16 @@ export function updateChannel(id: number, input: ChannelInput): Channel | null {
 
 export function deleteChannel(id: number) {
   db.query('DELETE FROM channels WHERE id=?').run(id);
+}
+
+// ---------- settings (key-value) ----------
+
+export function getSetting(key: string): string | null {
+  const r = db.query('SELECT value FROM settings WHERE key=?').get(key) as any;
+  return r?.value ?? null;
+}
+
+export function setSetting(key: string, value: string) {
+  db.query('INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
+    .run(key, value);
 }

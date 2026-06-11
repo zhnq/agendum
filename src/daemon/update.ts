@@ -9,6 +9,7 @@ import type { UpdateCheck, UpdateStatus } from '../shared/types';
 import * as db from './db';
 import { APP_ROOT, DATA_DIR, IS_COMPILED } from './paths';
 import { PORT } from './config';
+import { githubProxy } from './proxy';
 
 export const VERSION: string = pkg.version;
 const REPO = process.env.AGENDUM_REPO || 'zhnq/agendum';
@@ -79,11 +80,18 @@ const GH_HEADERS = {
   'user-agent': 'agendum-updater',
 };
 
+/** 网络型 git 命令（fetch/pull）按代理设置注入 http(s).proxy；git 不继承程序内代理 */
+function gitNet(...args: string[]): string[] {
+  const p = githubProxy();
+  return p ? ['git', '-c', `http.proxy=${p}`, '-c', `https.proxy=${p}`, ...args] : ['git', ...args];
+}
+
 async function fetchLatestRelease(): Promise<GhRelease | null> {
   let res: Response;
   try {
     res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
       headers: GH_HEADERS,
+      proxy: githubProxy() ?? undefined,
       signal: AbortSignal.timeout(30_000),
     });
   } catch (e) {
@@ -103,7 +111,7 @@ export async function checkUpdate(): Promise<UpdateCheck> {
   let behindCommits: number | null = null;
   let incomingSummary: string | null = null;
   if (mode === 'source') {
-    await run(['git', 'fetch', '--quiet'], { timeoutMs: 120_000 });
+    await run(gitNet('fetch', '--quiet'), { timeoutMs: 120_000 });
     behindCommits = Number.parseInt(
       (await run(['git', 'rev-list', '--count', 'HEAD..@{u}'])).trim(),
       10,
@@ -167,7 +175,7 @@ async function spawnDetached(scriptPath: string) {
 
 async function applySourceUpdate() {
   setPhase('pulling', 'git pull --ff-only');
-  await run(['git', 'pull', '--ff-only'], { timeoutMs: 180_000 });
+  await run(gitNet('pull', '--ff-only'), { timeoutMs: 180_000 });
 
   setPhase('installing_deps', 'bun install');
   await run(['bun', 'install'], { timeoutMs: 300_000 });
@@ -210,6 +218,7 @@ async function applyInstallerUpdate() {
   setPhase('downloading', `下载 ${asset.name}`);
   const res = await fetch(asset.browser_download_url, {
     headers: { 'user-agent': GH_HEADERS['user-agent'] },
+    proxy: githubProxy() ?? undefined,
     signal: AbortSignal.timeout(600_000),
   });
   if (!res.ok) throw new Error(`下载安装包失败：HTTP ${res.status}`);

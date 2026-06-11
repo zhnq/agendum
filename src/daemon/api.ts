@@ -10,6 +10,7 @@ import { runPowerShell } from './runner/script';
 import type { Scheduler } from './scheduler';
 import { IS_COMPILED, WEB_DIST } from './paths';
 import { applyUpdate, checkUpdate, getUpdateStatus, VERSION } from './update';
+import { getProxySettings, setProxySettings } from './proxy';
 import { PORT } from './config';
 
 export { PORT };
@@ -130,6 +131,26 @@ export function startServer(scheduler: Scheduler) {
           if (method === 'PUT') {
             const body = await req.json();
             return json(await setAutostartEnabled(!!body.enabled));
+          }
+        }
+
+        if (pathname === '/api/settings/proxy') {
+          if (method === 'GET') return json(getProxySettings());
+          if (method === 'PUT') return json(setProxySettings(await req.json()));
+        }
+        if (pathname === '/api/settings/proxy/test' && method === 'POST') {
+          const s = getProxySettings();
+          if (!s.url) return json({ ok: false, error: '未配置代理地址' });
+          const t0 = Date.now();
+          try {
+            const res = await fetch('https://api.github.com/rate_limit', {
+              headers: { 'user-agent': 'agendum' },
+              proxy: s.url,
+              signal: AbortSignal.timeout(15_000),
+            });
+            return json({ ok: res.ok, status: res.status, ms: Date.now() - t0 });
+          } catch (e) {
+            return json({ ok: false, error: String(e instanceof Error ? e.message : e).slice(0, 300) });
           }
         }
 

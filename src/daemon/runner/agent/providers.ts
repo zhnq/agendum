@@ -1,4 +1,5 @@
 import type { Provider } from '../../../shared/types';
+import { agentProxyFor } from '../../proxy';
 
 export interface ToolDef {
   name: string;
@@ -51,11 +52,18 @@ export async function chat(
   throw lastErr;
 }
 
-async function doFetch(url: string, headers: Record<string, string>, body: unknown, signal?: AbortSignal) {
+async function doFetch(
+  url: string,
+  headers: Record<string, string>,
+  body: unknown,
+  proxy: string | null,
+  signal?: AbortSignal,
+) {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
+    proxy: proxy ?? undefined,
     signal,
   });
   if (!res.ok) {
@@ -116,6 +124,7 @@ async function chatAnthropic(
         ? { tools: tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.schema })) }
         : {}),
     },
+    agentProxyFor(provider),
     signal,
   );
   const turn: LLMTurn = { text: '', toolCalls: [] };
@@ -170,6 +179,7 @@ async function chatOpenAI(
           }
         : {}),
     },
+    agentProxyFor(provider),
     signal,
   );
   const msg = data.choices?.[0]?.message ?? {};

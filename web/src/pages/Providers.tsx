@@ -17,7 +17,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { api } from '../api';
 import { fmtTime } from '../labels';
 import { PROVIDER_PRESETS } from '../presets';
-import type { Provider, ProviderInput, Task } from '../types';
+import type { Provider, ProviderInput, ProxyOverride, Task } from '../types';
 
 interface ProviderForm {
   name: string;
@@ -26,6 +26,7 @@ interface ProviderForm {
   apiKey: string;
   model: string;
   isDefault: boolean;
+  proxy: ProxyOverride;
 }
 
 export default function Providers() {
@@ -85,6 +86,7 @@ export default function Providers() {
       apiKey: '',
       model: def.model,
       isDefault: providers.length === 0,
+      proxy: 'follow',
     });
     setModalOpen(true);
   };
@@ -99,6 +101,7 @@ export default function Providers() {
       apiKey: p.apiKey,
       model: p.model,
       isDefault: p.isDefault,
+      proxy: p.proxy,
     });
     setModalOpen(true);
   };
@@ -114,6 +117,7 @@ export default function Providers() {
         apiKey: values.apiKey,
         model: values.model.trim(),
         isDefault: !!values.isDefault,
+        proxy: values.proxy ?? 'follow',
       };
       if (editing) {
         await api.updateProvider(editing.id, input);
@@ -166,6 +170,8 @@ export default function Providers() {
         <Space>
           <span style={{ fontWeight: 700 }}>{name}</span>
           {p.isDefault && <span className="mini-tag mini-tag-outline">全局默认</span>}
+          {p.proxy === 'proxy' && <span className="mini-tag">走代理</span>}
+          {p.proxy === 'direct' && <span className="mini-tag">直连</span>}
         </Space>
       ),
     },
@@ -348,6 +354,20 @@ export default function Providers() {
             rules={[{ required: true, message: '请输入默认模型名' }]}
           >
             <Input placeholder="如：glm-4.7" />
+          </Form.Item>
+          <Form.Item
+            name="proxy"
+            label="网络代理"
+            tooltip="全局代理在 设置 → 网络代理 配置；此处可对该 provider 单独覆盖"
+            initialValue="follow"
+          >
+            <Select
+              options={[
+                { value: 'follow', label: '跟随全局（Agent 调用分项）' },
+                { value: 'proxy', label: '强制走代理' },
+                { value: 'direct', label: '强制直连' },
+              ]}
+            />
           </Form.Item>
           <Form.Item name="isDefault" label="设为全局默认" valuePropName="checked">
             <Switch />
