@@ -50,6 +50,11 @@ export default function TaskDetail() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tokenStats, setTokenStats] = useState<{
+    inputTokens: number;
+    outputTokens: number;
+    countedRuns: number;
+  } | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -63,6 +68,9 @@ export default function TaskDetail() {
       setTask(t);
       setRuns(rs);
       setMemory(ms);
+      if (t.type === 'agent') {
+        void api.taskTokenStats(id).then(setTokenStats).catch(() => {});
+      }
     } catch (e) {
       message.error((e as Error).message);
     } finally {
@@ -164,6 +172,12 @@ export default function TaskDetail() {
   execItems.push({ label: '超时', value: `${task.timeoutSec} 秒` });
   if (task.type === 'agent') {
     execItems.push({ label: '轮数上限', value: `最多 ${task.maxTurns} 轮` });
+    if (tokenStats && tokenStats.countedRuns > 0) {
+      execItems.push({
+        label: '累计 tokens',
+        value: `${tokenStats.inputTokens.toLocaleString()} in / ${tokenStats.outputTokens.toLocaleString()} out（近 ${tokenStats.countedRuns} 次运行）`,
+      });
+    }
   } else {
     execItems.push({ label: '重试', value: `失败重试 ${task.retries} 次` });
   }

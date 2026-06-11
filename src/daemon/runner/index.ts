@@ -2,6 +2,7 @@ import type { RunReport, RunTrigger, Task } from '../../shared/types';
 import * as db from '../db';
 import { dispatchNotifications } from '../notify';
 import { runAgentTask } from './agent/loop';
+import { registerRun, unregisterRun } from './cancel';
 import { runScriptTask } from './script';
 
 function reportToMemoryText(report: RunReport, finishedAt: string): string {
@@ -24,11 +25,20 @@ export async function executeTask(task: Task, trigger: RunTrigger): Promise<numb
   db.setTaskRuntime(task.id, { lastRunAt: run.startedAt });
   console.log(`[runner] 任务 ${task.id}(${task.name}) 开始运行 #${run.id}（${trigger}）`);
 
+  const signal = registerRun(run.id);
   void (async () => {
     try {
-      const result = task.type === 'script'
-        ? await runScriptTask(task, run.id)
-        : await runAgentTask(task, run.id);
+      let result = task.type === 'script'
+        ? await runScriptTask(task, run.id, signal)
+        : await runAgentTask(task, run.id, signal);
+      if (signal.aborted) {
+        result = {
+          ...result,
+          status: 'failure',
+          error: '手动取消',
+          report: { success: false, summary: '手动取消' },
+        };
+      }
       db.finishRun(run.id, result);
       const finished = db.getRun(run.id)!;
       if (result.report) {
@@ -40,9 +50,11 @@ export async function executeTask(task: Task, trigger: RunTrigger): Promise<numb
       await dispatchNotifications(task, finished);
     } catch (e) {
       console.error(`[runner] 运行 #${run.id} 异常`, e);
-      db.finishRun(run.id, { status: 'failure', error: String(e) });
+      db.finishRun(run.id, { status: 'failure', error: signal.aborted ? '手动取消' : String(e) });
       const finished = db.getRun(run.id);
       if (finished) await dispatchNotifications(task, finished).catch(() => {});
+    } finally {
+      unregisterRun(run.id);
     }
   })();
 

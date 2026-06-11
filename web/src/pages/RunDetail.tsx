@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Alert, Collapse, message, Space, Spin, Tabs, Typography } from 'antd';
-import { CheckCircleFilled, CloseCircleFilled } from '@ant-design/icons';
+import { Alert, Button, Collapse, message, Popconfirm, Space, Spin, Tabs, Typography } from 'antd';
+import { CheckCircleFilled, CloseCircleFilled, StopOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import StatusTag from '../components/StatusTag';
 import { durationText, fmtTime, triggerLabels } from '../labels';
@@ -87,6 +87,20 @@ export default function RunDetailPage() {
   const [run, setRun] = useState<RunDetail | null>(null);
   const [taskName, setTaskName] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+
+  const doCancel = async () => {
+    if (!id) return;
+    setCancelling(true);
+    try {
+      await api.cancelRun(id);
+      message.success('已发出取消请求，等待运行收尾');
+    } catch (e) {
+      message.error((e as Error).message);
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -209,6 +223,20 @@ export default function RunDetailPage() {
           <span style={{ fontSize: 20, fontWeight: 700 }}>运行 #{run.id}</span>
           <StatusTag kind={run.status} />
           {run.status === 'running' && <span className="mini-tag">每 3 秒自动刷新</span>}
+          {run.status === 'running' && (
+            <Popconfirm
+              title="确认取消这次运行？"
+              description="正在执行的命令会被强制终止，运行记为失败。"
+              okText="取消运行"
+              okButtonProps={{ danger: true }}
+              cancelText="再等等"
+              onConfirm={() => void doCancel()}
+            >
+              <Button size="small" danger icon={<StopOutlined />} loading={cancelling}>
+                取消运行
+              </Button>
+            </Popconfirm>
+          )}
         </Space>
         <div style={{ marginTop: 6, color: 'var(--muted)', fontSize: 13 }}>
           <Link to={`/tasks/${run.taskId}`}>{taskName ?? `任务 #${run.taskId}`}</Link>
@@ -219,6 +247,8 @@ export default function RunDetailPage() {
           {' · 耗时 '}
           {durationText(run.startedAt, run.finishedAt)}
           {run.exitCode != null && ` · 退出码 ${run.exitCode}`}
+          {(run.inputTokens != null || run.outputTokens != null) &&
+            ` · tokens ${run.inputTokens ?? 0} in / ${run.outputTokens ?? 0} out`}
         </div>
         {run.error && (
           <Alert

@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import type { RunDetail, TaskInput, TranscriptEvent } from '../shared/types';
 import { getAutostartStatus, setAutostartEnabled } from './autostart';
 import * as db from './db';
+import { generateTaskDraft } from './nltask';
+import { cancelRun } from './runner/cancel';
 import { sendToChannel } from './notify';
 import { executeTask } from './runner';
 import { chat } from './runner/agent/providers';
@@ -51,6 +53,9 @@ function normalizeTaskInput(body: any): TaskInput {
     retries: Number(body.retries) || 0,
     prompt: body.prompt ?? null,
     providerId: body.providerId != null ? Number(body.providerId) : null,
+    fallbackProviderIds: Array.isArray(body.fallbackProviderIds)
+      ? body.fallbackProviderIds.map(Number).filter((n: number) => Number.isFinite(n))
+      : [],
     model: body.model?.trim() || null,
     maxTurns: Number(body.maxTurns) || 30,
     injectMemory: body.injectMemory !== false,
@@ -260,6 +265,17 @@ $owner.Dispose()
         if (m && method === 'GET') {
           return json(db.listMemory(Number(m[1])));
         }
+        m = pathname.match(/^\/api\/tasks\/(\d+)\/token-stats$/);
+        if (m && method === 'GET') {
+          return json(db.taskTokenTotals(Number(m[1])));
+        }
+
+        // ---- 自然语言生成任务草稿 ----
+        if (pathname === '/api/nl-task' && method === 'POST') {
+          const body = await req.json();
+          if (!body?.text?.trim()) return err('text 不能为空');
+          return json(await generateTaskDraft(String(body.text).slice(0, 2000)));
+        }
 
         // ---- runs ----
         if (pathname === '/api/runs' && method === 'GET') {
@@ -269,6 +285,11 @@ $owner.Dispose()
         if (m && method === 'GET') {
           const detail = buildRunDetail(Number(m[1]));
           return detail ? json(detail) : err('运行记录不存在', 404);
+        }
+        m = pathname.match(/^\/api\/runs\/(\d+)\/cancel$/);
+        if (m && method === 'POST') {
+          const ok = cancelRun(Number(m[1]));
+          return ok ? json({ ok: true }) : err('该运行不在进行中', 409);
         }
 
         // ---- memory ----

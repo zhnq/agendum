@@ -84,10 +84,17 @@ CREATE TABLE IF NOT EXISTS settings (
 `);
 
 // 增量迁移：老库补列（SQLite 无 IF NOT EXISTS for column）
-try {
-  db.exec("ALTER TABLE providers ADD COLUMN proxy TEXT NOT NULL DEFAULT 'follow'");
-} catch {
-  /* 列已存在 */
+for (const sql of [
+  "ALTER TABLE providers ADD COLUMN proxy TEXT NOT NULL DEFAULT 'follow'",
+  "ALTER TABLE tasks ADD COLUMN fallback_provider_ids TEXT NOT NULL DEFAULT '[]'",
+  'ALTER TABLE runs ADD COLUMN input_tokens INTEGER',
+  'ALTER TABLE runs ADD COLUMN output_tokens INTEGER',
+]) {
+  try {
+    db.exec(sql);
+  } catch {
+    /* 列已存在 */
+  }
 }
 
 export const nowIso = () => new Date().toISOString();
@@ -110,6 +117,7 @@ function rowToTask(r: any): Task {
     retries: r.retries,
     prompt: r.prompt,
     providerId: r.provider_id,
+    fallbackProviderIds: safeJsonArray(r.fallback_provider_ids),
     model: r.model,
     maxTurns: r.max_turns,
     injectMemory: !!r.inject_memory,
@@ -120,6 +128,15 @@ function rowToTask(r: any): Task {
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
+}
+
+function safeJsonArray(raw: unknown): number[] {
+  try {
+    const v = JSON.parse(String(raw || '[]'));
+    return Array.isArray(v) ? v.map(Number).filter((n) => Number.isFinite(n)) : [];
+  } catch {
+    return [];
+  }
 }
 
 function rowToRun(r: any): Run {
@@ -133,6 +150,8 @@ function rowToRun(r: any): Run {
     exitCode: r.exit_code,
     report: r.report ? JSON.parse(r.report) : null,
     error: r.error,
+    inputTokens: r.input_tokens ?? null,
+    outputTokens: r.output_tokens ?? null,
   };
 }
 
@@ -175,13 +194,14 @@ export function createTask(input: TaskInput): Task {
   const t = nowIso();
   const res = db.query(`
     INSERT INTO tasks (name, type, enabled, workdir, env, schedule, webhook_token, catch_up, timeout_sec,
-      command, retries, prompt, provider_id, model, max_turns, inject_memory, memory_reports, notifications,
+      command, retries, prompt, provider_id, fallback_provider_ids, model, max_turns, inject_memory, memory_reports, notifications,
       created_at, updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     input.name, input.type, input.enabled ? 1 : 0, input.workdir, JSON.stringify(input.env ?? {}),
     JSON.stringify(input.schedule), webhookTokenFor(input), input.catchUp, input.timeoutSec,
-    input.command, input.retries ?? 0, input.prompt, input.providerId, input.model,
+    input.command, input.retries ?? 0, input.prompt, input.providerId,
+    JSON.stringify(input.fallbackProviderIds ?? []), input.model,
     input.maxTurns ?? 30, input.injectMemory ? 1 : 0, input.memoryReports ?? 5,
     JSON.stringify(input.notifications ?? []), t, t,
   );
@@ -193,12 +213,13 @@ export function updateTask(id: number, input: TaskInput): Task | null {
   if (!existing) return null;
   db.query(`
     UPDATE tasks SET name=?, type=?, enabled=?, workdir=?, env=?, schedule=?, webhook_token=?, catch_up=?,
-      timeout_sec=?, command=?, retries=?, prompt=?, provider_id=?, model=?, max_turns=?, inject_memory=?,
+      timeout_sec=?, command=?, retries=?, prompt=?, provider_id=?, fallback_provider_ids=?, model=?, max_turns=?, inject_memory=?,
       memory_reports=?, notifications=?, updated_at=? WHERE id=?
   `).run(
     input.name, input.type, input.enabled ? 1 : 0, input.workdir, JSON.stringify(input.env ?? {}),
     JSON.stringify(input.schedule), webhookTokenFor(input, existing), input.catchUp, input.timeoutSec,
-    input.command, input.retries ?? 0, input.prompt, input.providerId, input.model,
+    input.command, input.retries ?? 0, input.prompt, input.providerId,
+    JSON.stringify(input.fallbackProviderIds ?? []), input.model,
     input.maxTurns ?? 30, input.injectMemory ? 1 : 0, input.memoryReports ?? 5,
     JSON.stringify(input.notifications ?? []), nowIso(), id,
   );
@@ -230,12 +251,15 @@ export interface FinishRunArgs {
   report?: RunReport | null;
   error?: string | null;
   logPath?: string | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
 }
 
 export function finishRun(id: number, args: FinishRunArgs) {
-  db.query('UPDATE runs SET status=?, finished_at=?, exit_code=?, report=?, error=?, log_path=COALESCE(?, log_path) WHERE id=?')
+  db.query('UPDATE runs SET status=?, finished_at=?, exit_code=?, report=?, error=?, log_path=COALESCE(?, log_path), input_tokens=?, output_tokens=? WHERE id=?')
     .run(args.status, nowIso(), args.exitCode ?? null,
-      args.report ? JSON.stringify(args.report) : null, args.error ?? null, args.logPath ?? null, id);
+      args.report ? JSON.stringify(args.report) : null, args.error ?? null, args.logPath ?? null,
+      args.inputTokens ?? null, args.outputTokens ?? null, id);
 }
 
 export function setRunLogPath(id: number, logPath: string) {
@@ -265,6 +289,14 @@ export function hasRunningRun(taskId: number): boolean {
 
 export function runningCount(): number {
   return (db.query("SELECT COUNT(*) AS c FROM runs WHERE status='running'").get() as any).c;
+}
+
+/** 任务的累计 token 用量（基于保留的运行历史，agent 任务才有数据） */
+export function taskTokenTotals(taskId: number): { inputTokens: number; outputTokens: number; countedRuns: number } {
+  const r = db.query(
+    'SELECT COALESCE(SUM(input_tokens),0) AS i, COALESCE(SUM(output_tokens),0) AS o, COUNT(input_tokens) AS c FROM runs WHERE task_id=? AND input_tokens IS NOT NULL',
+  ).get(taskId) as any;
+  return { inputTokens: r?.i ?? 0, outputTokens: r?.o ?? 0, countedRuns: r?.c ?? 0 };
 }
 
 /** daemon 重启后，把上个进程留下的 running 状态标记为失败 */
@@ -411,12 +443,13 @@ export function importBackup(b: any): Record<string, number> {
     }
     for (const t of tasks) {
       db.query(`INSERT INTO tasks (id, name, type, enabled, workdir, env, schedule, webhook_token, catch_up,
-        timeout_sec, command, retries, prompt, provider_id, model, max_turns, inject_memory, memory_reports,
-        notifications, last_run_at, next_due_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        timeout_sec, command, retries, prompt, provider_id, fallback_provider_ids, model, max_turns, inject_memory, memory_reports,
+        notifications, last_run_at, next_due_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(
           t.id, t.name, t.type, t.enabled ? 1 : 0, t.workdir ?? null, JSON.stringify(t.env ?? {}),
           JSON.stringify(t.schedule ?? {}), t.webhookToken ?? null, t.catchUp === 'run_once' ? 'run_once' : 'skip',
           t.timeoutSec ?? 300, t.command ?? null, t.retries ?? 0, t.prompt ?? null, t.providerId ?? null,
+          JSON.stringify(Array.isArray(t.fallbackProviderIds) ? t.fallbackProviderIds : []),
           t.model ?? null, t.maxTurns ?? 30, t.injectMemory === false ? 0 : 1, t.memoryReports ?? 5,
           JSON.stringify(t.notifications ?? []), t.lastRunAt ?? null, t.nextDueAt ?? null,
           t.createdAt ?? nowIso(), t.updatedAt ?? nowIso(),
@@ -426,9 +459,9 @@ export function importBackup(b: any): Record<string, number> {
       // 备份里残留的 running 状态没有意义，落库为失败；日志文件不随备份迁移
       const status = r.status === 'running' ? 'failure' : r.status;
       const error = r.status === 'running' ? '导入自备份，原运行中断' : (r.error ?? null);
-      db.query('INSERT INTO runs (id, task_id, trigger, status, started_at, finished_at, exit_code, report, error, log_path) VALUES (?,?,?,?,?,?,?,?,?,NULL)')
+      db.query('INSERT INTO runs (id, task_id, trigger, status, started_at, finished_at, exit_code, report, error, log_path, input_tokens, output_tokens) VALUES (?,?,?,?,?,?,?,?,?,NULL,?,?)')
         .run(r.id, r.taskId, r.trigger, status, r.startedAt, r.finishedAt ?? null, r.exitCode ?? null,
-          r.report ? JSON.stringify(r.report) : null, error);
+          r.report ? JSON.stringify(r.report) : null, error, r.inputTokens ?? null, r.outputTokens ?? null);
     }
     for (const m of memory) {
       db.query('INSERT INTO memory (id, task_id, run_id, kind, content, created_at) VALUES (?,?,?,?,?,?)')

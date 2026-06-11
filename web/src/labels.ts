@@ -15,6 +15,8 @@ export const notifyOnLabels: Record<NotifyOn, string> = {
   always: '总是',
   failure: '仅失败',
   success: '仅成功',
+  failure_streak: '连续失败达 N 次',
+  recovery: '从连败恢复',
 };
 
 export const channelTypeLabels: Record<ChannelType, string> = {

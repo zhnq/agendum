@@ -1,9 +1,9 @@
 import { appendFileSync } from 'node:fs';
-import type { RunReport, Task, TranscriptEvent } from '../../../shared/types';
+import type { Provider, RunReport, Task, TranscriptEvent } from '../../../shared/types';
 import * as db from '../../db';
 import type { FinishRunArgs } from '../../db';
 import { runLogPath } from '../script';
-import { chat, type NeutralMsg } from './providers';
+import { chat, type LLMTurn, type NeutralMsg } from './providers';
 import { AGENT_TOOLS, execTool, REPORT_TOOL } from './tools';
 
 function buildMemorySection(task: Task): string {
@@ -39,25 +39,58 @@ function buildSystemPrompt(task: Task): string {
 ${buildMemorySection(task)}`;
 }
 
-export async function runAgentTask(task: Task, runId: number): Promise<FinishRunArgs> {
+export async function runAgentTask(task: Task, runId: number, signal?: AbortSignal): Promise<FinishRunArgs> {
   const logPath = runLogPath(runId, 'jsonl');
   const emit = (ev: Omit<TranscriptEvent, 't'>) => {
     appendFileSync(logPath, JSON.stringify({ ...ev, t: new Date().toISOString() }) + '\n');
   };
 
-  const provider = (task.providerId != null ? db.getProvider(task.providerId) : null) ?? db.getDefaultProvider();
-  if (!provider) {
+  const primary = (task.providerId != null ? db.getProvider(task.providerId) : null) ?? db.getDefaultProvider();
+  if (!primary) {
     return { status: 'failure', error: '未配置任何模型 Provider', logPath };
   }
   if (!task.prompt?.trim()) {
     return { status: 'failure', error: '任务未配置指令 prompt', logPath };
   }
-  const model = task.model?.trim() || provider.model;
+  // 降级链：主 provider + 备用（按配置顺序，去重去无效）
+  const chain: Provider[] = [primary];
+  for (const fid of task.fallbackProviderIds ?? []) {
+    const p = db.getProvider(fid);
+    if (p && !chain.some((c) => c.id === p.id)) chain.push(p);
+  }
+  let chainIdx = 0;
+  // 模型覆盖只对主 provider 生效；降级后用备用 provider 自己的默认模型
+  const curModel = () => (chainIdx === 0 ? task.model?.trim() || chain[0].model : chain[chainIdx].model);
+
   const system = buildSystemPrompt(task);
   const deadline = Date.now() + (task.timeoutSec || 1800) * 1000;
-  const ctx = { task, runId, deadline };
+  const ctx = { task, runId, deadline, signal };
+  const tokens = { input: 0, output: 0 };
 
-  emit({ type: 'system', content: `provider=${provider.name} model=${model} maxTurns=${task.maxTurns} timeoutSec=${task.timeoutSec}` });
+  async function chatWithFallback(msgs: NeutralMsg[]): Promise<LLMTurn> {
+    for (;;) {
+      try {
+        const turn = await chat(chain[chainIdx], curModel(), system, msgs, AGENT_TOOLS, signal);
+        tokens.input += turn.usage.input;
+        tokens.output += turn.usage.output;
+        return turn;
+      } catch (e) {
+        if (signal?.aborted || chainIdx >= chain.length - 1) throw e;
+        chainIdx++;
+        emit({
+          type: 'system',
+          content: `provider 调用失败，降级到「${chain[chainIdx].name}」(${curModel()})：${String(e).slice(0, 200)}`,
+        });
+      }
+    }
+  }
+
+  const tokenArgs = () => ({
+    inputTokens: tokens.input > 0 ? tokens.input : null,
+    outputTokens: tokens.output > 0 ? tokens.output : null,
+  });
+
+  emit({ type: 'system', content: `provider=${primary.name} model=${curModel()} fallbacks=[${chain.slice(1).map((p) => p.name).join(', ')}] maxTurns=${task.maxTurns} timeoutSec=${task.timeoutSec}` });
 
   const msgs: NeutralMsg[] = [{ role: 'user', text: task.prompt }];
   let report: RunReport | null = null;
@@ -66,12 +99,17 @@ export async function runAgentTask(task: Task, runId: number): Promise<FinishRun
 
   try {
     for (let turn = 1; turn <= Math.max(1, task.maxTurns); turn++) {
+      if (signal?.aborted) {
+        emit({ type: 'system', content: '收到取消请求，结束运行' });
+        report = { success: false, summary: '手动取消', details: lastText || undefined };
+        break;
+      }
       if (Date.now() > deadline) {
         emit({ type: 'error', content: '总超时，强制结束' });
         report = { success: false, summary: `运行超时（${task.timeoutSec}s）未完成`, details: lastText || undefined };
         break;
       }
-      const resp = await chat(provider, model, system, msgs, AGENT_TOOLS);
+      const resp = await chatWithFallback(msgs);
       if (resp.text) {
         lastText = resp.text;
         emit({ type: 'assistant_text', text: resp.text });
@@ -113,7 +151,7 @@ export async function runAgentTask(task: Task, runId: number): Promise<FinishRun
     if (!report) {
       report = { success: false, summary: `达到最大轮数（${task.maxTurns}）仍未完成`, details: lastText || undefined };
     }
-    return { status: report.success ? 'success' : 'failure', report, logPath };
+    return { status: report.success ? 'success' : 'failure', report, logPath, ...tokenArgs() };
   } catch (e) {
     emit({ type: 'error', content: String(e) });
     return {
@@ -121,6 +159,7 @@ export async function runAgentTask(task: Task, runId: number): Promise<FinishRun
       error: String(e),
       report: { success: false, summary: `运行异常：${String(e).slice(0, 300)}` },
       logPath,
+      ...tokenArgs(),
     };
   }
 }

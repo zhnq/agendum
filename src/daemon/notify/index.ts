@@ -3,18 +3,53 @@ import type { Channel, Run, Task } from '../../shared/types';
 import * as db from '../db';
 import { runPowerShell } from '../runner/script';
 
+/** 从最近一次运行起连续失败的次数（fromIndex=0 含本次，=1 为本次之前） */
+function failureStreak(runs: Run[], fromIndex: number): number {
+  let n = 0;
+  for (let i = fromIndex; i < runs.length; i++) {
+    if (runs[i].status === 'failure') n++;
+    else break;
+  }
+  return n;
+}
+
 export async function dispatchNotifications(task: Task, run: Run) {
+  const ok = run.status === 'success';
+  // 连败统计：取最近完结的运行（本次已落库，位于队首）
+  const recent = db.listRuns(task.id, 50).filter((r) => r.status !== 'running');
+  const idx = Math.max(0, recent.findIndex((r) => r.id === run.id));
+  const streak = failureStreak(recent, idx); // 含本次
+  const prevStreak = failureStreak(recent, idx + 1); // 本次之前
+
   for (const binding of task.notifications ?? []) {
-    const ok = run.status === 'success';
-    const want =
-      binding.on === 'always' || (binding.on === 'failure' && !ok) || (binding.on === 'success' && ok);
-    if (!want) continue;
+    let title: string | null = null;
+    switch (binding.on) {
+      case 'always':
+        title = `[Agendum] ${task.name}：${ok ? '✅ 成功' : '❌ 失败'}`;
+        break;
+      case 'success':
+        if (ok) title = `[Agendum] ${task.name}：✅ 成功`;
+        break;
+      case 'failure':
+        if (!ok) title = `[Agendum] ${task.name}：❌ 失败`;
+        break;
+      case 'failure_streak': {
+        // 恰好达到阈值时报一次，继续连败不重复打扰，恢复后重新计数
+        const threshold = Math.max(1, binding.streakThreshold ?? 3);
+        if (!ok && streak === threshold) title = `[Agendum] ${task.name}：🚨 连续失败 ${streak} 次`;
+        break;
+      }
+      case 'recovery': {
+        const threshold = Math.max(1, binding.streakThreshold ?? 1);
+        if (ok && prevStreak >= threshold) title = `[Agendum] ${task.name}：✅ 已恢复（此前连败 ${prevStreak} 次）`;
+        break;
+      }
+    }
+    if (!title) continue;
     const channel = db.getChannel(binding.channelId);
     if (!channel) continue;
-    const title = `[Agendum] ${task.name}：${ok ? '✅ 成功' : '❌ 失败'}`;
-    const body = formatBody(run);
     try {
-      await sendToChannel(channel, title, body);
+      await sendToChannel(channel, title, formatBody(run));
     } catch (e) {
       console.error(`[notify] 渠道 ${channel.name}(${channel.type}) 发送失败`, e);
     }

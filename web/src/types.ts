@@ -6,7 +6,7 @@ export type Protocol = 'anthropic' | 'openai';
 export type CatchUp = 'run_once' | 'skip';
 export type RunTrigger = 'cron' | 'interval' | 'startup' | 'manual' | 'webhook' | 'catchup';
 export type RunStatus = 'running' | 'success' | 'failure';
-export type NotifyOn = 'always' | 'failure' | 'success';
+export type NotifyOn = 'always' | 'failure' | 'success' | 'failure_streak' | 'recovery';
 export type ChannelType = 'lark_webhook' | 'lark_cli' | 'serverchan' | 'win_toast';
 export type MemoryKind = 'report' | 'note';
 
@@ -26,6 +26,11 @@ export interface Schedule {
 export interface NotificationBinding {
   channelId: number;
   on: NotifyOn;
+  /**
+   * failure_streak：连续失败达到 N 次时通知一次（恢复前不再重复）；
+   * recovery：从 ≥N 次连败中恢复时通知。缺省 failure_streak=3、recovery=1。
+   */
+  streakThreshold?: number;
 }
 
 export interface RunReport {
@@ -58,6 +63,8 @@ export interface Task {
   /** 自然语言任务指令 */
   prompt: string | null;
   providerId: number | null;
+  /** 备用 Provider（按顺序降级）：主 provider 调用失败（重试耗尽）后依次切换 */
+  fallbackProviderIds: number[];
   /** 模型覆盖，null 用 provider 默认模型 */
   model: string | null;
   maxTurns: number;
@@ -89,6 +96,20 @@ export interface Run {
   exitCode: number | null;
   report: RunReport | null;
   error: string | null;
+  /** 仅 agent 任务：本次运行累计 token 用量 */
+  inputTokens: number | null;
+  outputTokens: number | null;
+}
+
+/** 自然语言生成的任务配置草稿（回填表单，由人确认后创建） */
+export interface NlTaskDraft {
+  name: string;
+  type: TaskType;
+  command: string | null;
+  prompt: string | null;
+  schedule: Schedule;
+  catchUp: CatchUp;
+  timeoutSec: number;
 }
 
 /** agent 运行轨迹中的一条事件 */

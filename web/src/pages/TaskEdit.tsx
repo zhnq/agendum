@@ -22,6 +22,7 @@ import {
   MinusCircleOutlined,
   PlusOutlined,
   RobotOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
 import { api } from '../api';
 import ScheduleBuilder from '../components/ScheduleBuilder';
@@ -44,6 +45,7 @@ interface EnvRow {
 interface NotificationRow {
   channelId: number;
   on: NotifyOn;
+  streakThreshold?: number;
 }
 
 interface FormValues {
@@ -63,6 +65,7 @@ interface FormValues {
   // agent
   prompt?: string;
   providerId?: number | null;
+  fallbackProviderIds?: number[];
   maxTurns?: number;
   injectMemory?: boolean;
   memoryReports?: number;
@@ -95,11 +98,16 @@ function taskToForm(t: Task): FormValues {
     webhookEnabled: t.schedule.webhookEnabled,
     catchUp: t.catchUp,
     timeoutSec: t.timeoutSec,
-    notifications: t.notifications.map((n) => ({ channelId: n.channelId, on: n.on })),
+    notifications: t.notifications.map((n) => ({
+      channelId: n.channelId,
+      on: n.on,
+      streakThreshold: n.streakThreshold,
+    })),
     command: t.command ?? undefined,
     retries: t.retries,
     prompt: t.prompt ?? undefined,
     providerId: t.providerId,
+    fallbackProviderIds: t.fallbackProviderIds ?? [],
     maxTurns: t.maxTurns,
     injectMemory: t.injectMemory,
     memoryReports: t.memoryReports,
@@ -132,12 +140,21 @@ function formToInput(v: FormValues, enabled: boolean): TaskInput {
     retries: isScript ? (v.retries ?? 0) : 0,
     prompt: !isScript ? (v.prompt ?? '') : null,
     providerId: !isScript ? (v.providerId ?? null) : null,
+    fallbackProviderIds: !isScript ? (v.fallbackProviderIds ?? []) : [],
     // 模型跟随 Provider 的默认模型；需要不同模型时建多个 Provider
     model: null,
     maxTurns: v.maxTurns ?? 15,
     injectMemory: v.injectMemory ?? true,
     memoryReports: v.memoryReports ?? 3,
-    notifications: (v.notifications ?? []).filter((n) => n && n.channelId != null),
+    notifications: (v.notifications ?? [])
+      .filter((n) => n && n.channelId != null)
+      .map((n) => ({
+        channelId: n.channelId,
+        on: n.on,
+        ...(n.on === 'failure_streak' || n.on === 'recovery'
+          ? { streakThreshold: n.streakThreshold ?? (n.on === 'failure_streak' ? 3 : 1) }
+          : {}),
+      })),
   };
 }
 
@@ -295,6 +312,36 @@ export default function TaskEdit() {
       message.error((e as Error).message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const [nlText, setNlText] = useState('');
+  const [nlLoading, setNlLoading] = useState(false);
+
+  const generateFromNl = async () => {
+    if (!nlText.trim()) return;
+    setNlLoading(true);
+    try {
+      const d = await api.nlTask(nlText.trim());
+      form.setFieldsValue({
+        name: d.name,
+        type: d.type,
+        command: d.command ?? undefined,
+        prompt: d.prompt ?? undefined,
+        rules: schedulePartsToRules(
+          d.schedule.crons,
+          d.schedule.intervalMinutes,
+          d.schedule.workdayTimes,
+        ),
+        atStartup: d.schedule.atStartup,
+        catchUp: d.catchUp,
+        timeoutSec: d.timeoutSec,
+      });
+      message.success('草稿已回填，请核对后创建');
+    } catch (e) {
+      message.error((e as Error).message);
+    } finally {
+      setNlLoading(false);
     }
   };
 
@@ -506,6 +553,32 @@ export default function TaskEdit() {
       )}
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0, maxWidth: 860 }}>
+          {isNew && (
+            <div
+              className="panel panel-pad"
+              style={{ marginBottom: 16, background: '#eef4fe', borderColor: 'var(--accent-soft)' }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                <ThunderboltOutlined style={{ color: 'var(--accent)', marginRight: 6 }} />
+                一句话生成配置
+              </div>
+              <Space.Compact style={{ width: '100%' }}>
+                <Input
+                  value={nlText}
+                  onChange={(e) => setNlText(e.target.value)}
+                  onPressEnter={() => void generateFromNl()}
+                  placeholder="如：每个法定工作日 9 点检查 D 盘剩余空间，少于 50G 就清理临时目录并报告结果"
+                  disabled={nlLoading}
+                />
+                <Button type="primary" loading={nlLoading} onClick={() => void generateFromNl()}>
+                  生成
+                </Button>
+              </Space.Compact>
+              <div style={{ marginTop: 6, color: 'var(--muted)', fontSize: 12 }}>
+                由全局默认 Provider 翻译成配置草稿回填下方表单，创建前请核对
+              </div>
+            </div>
+          )}
           <Form<FormValues>
             form={form}
             layout="vertical"
@@ -575,6 +648,21 @@ export default function TaskEdit() {
                 notFoundContent="暂无 Provider，请先到「Provider」页创建"
               />
             </Form.Item>
+            <Form.Item
+              name="fallbackProviderIds"
+              label="备用 Provider（按顺序降级）"
+              tooltip="主 provider 调用失败（重试耗尽）后依次切换；备用 provider 用各自的默认模型"
+            >
+              <Select
+                mode="multiple"
+                allowClear
+                placeholder="可选；选择顺序即降级顺序"
+                style={{ maxWidth: 480 }}
+                options={providers
+                  .filter((p) => p.id !== watchedProviderId)
+                  .map((p) => ({ value: p.id, label: `${p.name}（${p.model}）` }))}
+              />
+            </Form.Item>
           </>
         )}
 
@@ -629,13 +717,35 @@ export default function TaskEdit() {
                       style={{ marginBottom: 4 }}
                     >
                       <Select
-                        style={{ width: 140 }}
+                        style={{ width: 170 }}
                         options={(Object.keys(notifyOnLabels) as NotifyOn[]).map((k) => ({
                           value: k,
                           label: notifyOnLabels[k],
                         }))}
                       />
                     </Form.Item>
+                    {(watchedNotifications[field.name]?.on === 'failure_streak' ||
+                      watchedNotifications[field.name]?.on === 'recovery') && (
+                      <Form.Item
+                        name={[field.name, 'streakThreshold']}
+                        style={{ marginBottom: 4 }}
+                        tooltip={
+                          watchedNotifications[field.name]?.on === 'failure_streak'
+                            ? '连续失败恰好达到 N 次时通知一次，恢复前不再重复'
+                            : '从 ≥N 次连败中恢复时通知'
+                        }
+                      >
+                        <InputNumber
+                          min={1}
+                          max={100}
+                          style={{ width: 120 }}
+                          addonBefore="N="
+                          placeholder={
+                            watchedNotifications[field.name]?.on === 'failure_streak' ? '3' : '1'
+                          }
+                        />
+                      </Form.Item>
+                    )}
                     <MinusCircleOutlined onClick={() => remove(field.name)} />
                   </Space>
                 ))}

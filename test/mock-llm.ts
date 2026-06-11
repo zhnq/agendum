@@ -20,6 +20,7 @@ Bun.serve({
               ],
             },
           }],
+          usage: { prompt_tokens: 120, completion_tokens: 45 },
         });
       }
       return Response.json({
@@ -29,6 +30,7 @@ Bun.serve({
             tool_calls: [{ id: 'c3', type: 'function', function: { name: 'report', arguments: JSON.stringify({ success: true, summary: 'openai 协议 mock 流程成功', details: '执行命令+写记忆+简报' }) } }],
           },
         }],
+        usage: { prompt_tokens: 200, completion_tokens: 30 },
       });
     }
 
@@ -43,11 +45,13 @@ Bun.serve({
             { type: 'tool_use', id: 't1', name: 'run_command', input: { command: 'Write-Output mock-agent-e2e' } },
           ],
           stop_reason: 'tool_use',
+          usage: { input_tokens: 110, output_tokens: 40 },
         });
       }
       return Response.json({
         content: [{ type: 'tool_use', id: 't2', name: 'report', input: { success: true, summary: 'anthropic 协议 mock 流程成功' } }],
         stop_reason: 'tool_use',
+        usage: { input_tokens: 180, output_tokens: 25 },
       });
     }
 

@@ -27,6 +27,8 @@ export interface NeutralMsg {
 export interface LLMTurn {
   text: string;
   toolCalls: ToolCall[];
+  /** 本轮 API 调用的 token 用量（API 未返回时为 0） */
+  usage: { input: number; output: number };
 }
 
 export async function chat(
@@ -127,7 +129,11 @@ async function chatAnthropic(
     agentProxyFor(provider),
     signal,
   );
-  const turn: LLMTurn = { text: '', toolCalls: [] };
+  const turn: LLMTurn = {
+    text: '',
+    toolCalls: [],
+    usage: { input: Number(data.usage?.input_tokens) || 0, output: Number(data.usage?.output_tokens) || 0 },
+  };
   for (const block of data.content ?? []) {
     if (block.type === 'text') turn.text += block.text;
     if (block.type === 'tool_use') turn.toolCalls.push({ id: block.id, name: block.name, input: block.input ?? {} });
@@ -183,7 +189,11 @@ async function chatOpenAI(
     signal,
   );
   const msg = data.choices?.[0]?.message ?? {};
-  const turn: LLMTurn = { text: msg.content ?? '', toolCalls: [] };
+  const turn: LLMTurn = {
+    text: msg.content ?? '',
+    toolCalls: [],
+    usage: { input: Number(data.usage?.prompt_tokens) || 0, output: Number(data.usage?.completion_tokens) || 0 },
+  };
   for (const tc of msg.tool_calls ?? []) {
     let input: any = {};
     try {

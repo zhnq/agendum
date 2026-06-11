@@ -15,6 +15,7 @@ import type {
   UpdateCheck,
   UpdateStatus,
   ProxySettings,
+  NlTaskDraft,
 } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -111,10 +112,18 @@ export const api = {
   listTaskRuns: (id: number | string, limit = 50) =>
     request<Run[]>(`/api/tasks/${id}/runs?limit=${limit}`),
   listTaskMemory: (id: number | string) => request<MemoryEntry[]>(`/api/tasks/${id}/memory`),
+  taskTokenStats: (id: number | string) =>
+    request<{ inputTokens: number; outputTokens: number; countedRuns: number }>(
+      `/api/tasks/${id}/token-stats`,
+    ),
+  nlTask: (text: string) =>
+    request<NlTaskDraft>('/api/nl-task', { method: 'POST', body: JSON.stringify({ text }) }),
 
   // 运行
   listRuns: (limit = 50) => request<Run[]>(`/api/runs?limit=${limit}`),
   getRun: (id: number | string) => request<RunDetail>(`/api/runs/${id}`),
+  cancelRun: (id: number | string) =>
+    request<{ ok: true }>(`/api/runs/${id}/cancel`, { method: 'POST' }),
 
   // 记忆
   deleteMemory: (id: number | string) =>
@@ -160,6 +169,7 @@ export function taskToInput(t: Task): TaskInput {
     retries: t.retries,
     prompt: t.prompt,
     providerId: t.providerId,
+    fallbackProviderIds: t.fallbackProviderIds,
     model: t.model,
     maxTurns: t.maxTurns,
     injectMemory: t.injectMemory,

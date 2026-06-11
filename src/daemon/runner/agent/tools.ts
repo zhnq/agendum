@@ -69,6 +69,8 @@ export interface ToolCtx {
   runId: number;
   /** 整次运行的截止时间戳(ms) */
   deadline: number;
+  /** 手动取消信号，run_command 据此杀子进程 */
+  signal?: AbortSignal;
 }
 
 export async function execTool(name: string, input: any, ctx: ToolCtx): Promise<string> {
@@ -84,6 +86,7 @@ export async function execTool(name: string, input: any, ctx: ToolCtx): Promise<
           cwd: input.cwd || ctx.task.workdir,
           env: ctx.task.env,
           timeoutMs: perCall,
+          signal: ctx.signal,
         });
         return `退出码: ${r.exitCode}${r.timedOut ? '（超时被终止）' : ''}\n${tail(r.output, 8000) || '(无输出)'}`;
       }
