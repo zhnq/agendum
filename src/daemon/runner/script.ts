@@ -1,6 +1,6 @@
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Task } from '../../shared/types';
+import type { Task, TriggerEvent } from '../../shared/types';
 import type { FinishRunArgs } from '../db';
 import { LOG_DIR } from '../paths';
 
@@ -55,11 +55,18 @@ export async function runPowerShell(
   return { exitCode, output, timedOut };
 }
 
-export async function runScriptTask(task: Task, runId: number, signal?: AbortSignal): Promise<FinishRunArgs> {
+export async function runScriptTask(
+  task: Task,
+  runId: number,
+  signal?: AbortSignal,
+  event?: TriggerEvent,
+): Promise<FinishRunArgs> {
   const logPath = runLogPath(runId, 'log');
   if (!task.command?.trim()) {
     return { status: 'failure', error: '任务未配置命令', logPath };
   }
+  // 事件源触发时把载荷作为 $env:AGENDUM_EVENT（JSON）传入命令
+  const env = event ? { ...task.env, AGENDUM_EVENT: JSON.stringify(event) } : task.env;
   const attempts = Math.max(1, (task.retries ?? 0) + 1);
   let last: CommandResult = { exitCode: -1, output: '', timedOut: false };
 
@@ -68,7 +75,7 @@ export async function runScriptTask(task: Task, runId: number, signal?: AbortSig
     appendFileSync(logPath, `===== 尝试 ${i}/${attempts} @ ${new Date().toISOString()} =====\n> ${task.command}\n`);
     last = await runPowerShell(task.command, {
       cwd: task.workdir,
-      env: task.env,
+      env,
       timeoutMs: (task.timeoutSec || 1800) * 1000,
       signal,
     });

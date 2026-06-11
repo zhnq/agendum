@@ -1,5 +1,5 @@
 import { appendFileSync } from 'node:fs';
-import type { Provider, RunReport, Task, TranscriptEvent } from '../../../shared/types';
+import type { Provider, RunReport, Task, TranscriptEvent, TriggerEvent } from '../../../shared/types';
 import * as db from '../../db';
 import type { FinishRunArgs } from '../../db';
 import { runLogPath } from '../script';
@@ -25,7 +25,18 @@ function buildMemorySection(task: Task): string {
   return s;
 }
 
-function buildSystemPrompt(task: Task): string {
+function buildEventSection(event?: TriggerEvent): string {
+  if (!event) return '';
+  let body: string;
+  try {
+    body = JSON.stringify(event.data, null, 2).slice(0, 4000);
+  } catch {
+    body = String(event.data).slice(0, 4000);
+  }
+  return `\n== 本次触发来自事件源「${event.sourceName}」（${event.type}）==\n这是事件驱动运行，请针对下面的事件载荷处理：\n${body}\n`;
+}
+
+function buildSystemPrompt(task: Task, event?: TriggerEvent): string {
   return `你是 Agendum 自动化系统的任务执行 agent，正在无人值守地执行定时任务「${task.name}」。
 
 环境：Windows 11；run_command 工具使用 PowerShell 语法；当前时间 ${new Date().toString()}；默认工作目录 ${task.workdir ?? process.cwd()}。
@@ -36,10 +47,15 @@ function buildSystemPrompt(task: Task): string {
 - 发现对未来运行有长期价值的信息（数据源状态、路径变更、踩坑结论），用 update_memory 记录；一次性结果不要记。
 - 结束前必须调用 ${REPORT_TOOL} 工具提交简报（success/summary/details）。简报会成为任务记忆，下次运行可见——把关键结果（产物路径、使用的参数、跳过原因）写清楚。
 - 资源限制：最多 ${task.maxTurns} 轮对话、总时长 ${task.timeoutSec} 秒，请直奔目标。
-${buildMemorySection(task)}`;
+${buildEventSection(event)}${buildMemorySection(task)}`;
 }
 
-export async function runAgentTask(task: Task, runId: number, signal?: AbortSignal): Promise<FinishRunArgs> {
+export async function runAgentTask(
+  task: Task,
+  runId: number,
+  signal?: AbortSignal,
+  event?: TriggerEvent,
+): Promise<FinishRunArgs> {
   const logPath = runLogPath(runId, 'jsonl');
   const emit = (ev: Omit<TranscriptEvent, 't'>) => {
     appendFileSync(logPath, JSON.stringify({ ...ev, t: new Date().toISOString() }) + '\n');
@@ -62,7 +78,7 @@ export async function runAgentTask(task: Task, runId: number, signal?: AbortSign
   // 模型覆盖只对主 provider 生效；降级后用备用 provider 自己的默认模型
   const curModel = () => (chainIdx === 0 ? task.model?.trim() || chain[0].model : chain[chainIdx].model);
 
-  const system = buildSystemPrompt(task);
+  const system = buildSystemPrompt(task, event);
   const deadline = Date.now() + (task.timeoutSec || 1800) * 1000;
   const ctx = { task, runId, deadline, signal };
   const tokens = { input: 0, output: 0 };

@@ -4,7 +4,7 @@
 export type TaskType = 'script' | 'agent';
 export type Protocol = 'anthropic' | 'openai';
 export type CatchUp = 'run_once' | 'skip';
-export type RunTrigger = 'cron' | 'interval' | 'startup' | 'manual' | 'webhook' | 'catchup';
+export type RunTrigger = 'cron' | 'interval' | 'startup' | 'manual' | 'webhook' | 'catchup' | 'event';
 export type RunStatus = 'running' | 'success' | 'failure';
 export type NotifyOn = 'always' | 'failure' | 'success' | 'failure_streak' | 'recovery';
 export type ChannelType = 'lark_webhook' | 'lark_cli' | 'serverchan' | 'win_toast';
@@ -259,6 +259,47 @@ export interface ProxySettings {
   enabled: boolean;
   useForGithub: boolean;
   useForAgent: boolean;
+}
+
+// ---- 触发事件源（事件总线：循环轮询预设源，有新事件就触发绑定任务）----
+export type SourceType = 'http_poll' | 'rss' | 'command_probe';
+
+/**
+ * 每个源像通知渠道一样配置。config 按 type 解释：
+ * - http_poll:      { url, path?(点路径如 data.items.0.id), mode:'value_changed'|'new_items', idField?, proxy?:'follow'|'direct' }
+ * - rss:            { url, proxy?:'follow'|'direct' }            // 按条目 guid/link 去重
+ * - command_probe:  { command, signal:'exit_zero'|'output_changed'|'nonempty', workdir? }
+ */
+export interface Source {
+  id: number;
+  name: string;
+  type: SourceType;
+  enabled: boolean;
+  config: Record<string, unknown>;
+  /** 检查间隔秒数，下限 30 */
+  checkIntervalSec: number;
+  /** 触发哪些任务（一对多） */
+  taskIds: number[];
+  lastCheckedAt: string | null;
+  lastFiredAt: string | null;
+  /** 最近一次检查的人话结果，UI 展示用：如「已建立基线」「有新事件，已触发」「错误：…」 */
+  lastStatus: string | null;
+  createdAt: string;
+}
+
+export type SourceInput = Omit<
+  Source,
+  'id' | 'lastCheckedAt' | 'lastFiredAt' | 'lastStatus' | 'createdAt'
+>;
+
+/** 源触发任务时注入的事件载荷 */
+export interface TriggerEvent {
+  sourceId: number;
+  sourceName: string;
+  type: SourceType;
+  firedAt: string;
+  /** 类型相关：http_poll value_changed→取到的值；new_items/rss→{items:[...]}；command_probe→{exitCode,output} */
+  data: unknown;
 }
 
 export interface AutostartStatus {

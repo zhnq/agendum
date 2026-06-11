@@ -1,4 +1,4 @@
-import type { RunReport, RunTrigger, Task } from '../../shared/types';
+import type { RunReport, RunTrigger, Task, TriggerEvent } from '../../shared/types';
 import * as db from '../db';
 import { dispatchNotifications } from '../notify';
 import { runAgentTask } from './agent/loop';
@@ -16,7 +16,11 @@ function reportToMemoryText(report: RunReport, finishedAt: string): string {
  * 触发一次任务运行（异步执行，立即返回 runId）。
  * 任务已有运行中实例时返回 null（重叠跳过策略）。
  */
-export async function executeTask(task: Task, trigger: RunTrigger): Promise<number | null> {
+export async function executeTask(
+  task: Task,
+  trigger: RunTrigger,
+  event?: TriggerEvent,
+): Promise<number | null> {
   if (db.hasRunningRun(task.id)) {
     console.log(`[runner] 任务 ${task.id}(${task.name}) 正在运行，跳过本次 ${trigger} 触发`);
     return null;
@@ -29,8 +33,8 @@ export async function executeTask(task: Task, trigger: RunTrigger): Promise<numb
   void (async () => {
     try {
       let result = task.type === 'script'
-        ? await runScriptTask(task, run.id, signal)
-        : await runAgentTask(task, run.id, signal);
+        ? await runScriptTask(task, run.id, signal, event)
+        : await runAgentTask(task, run.id, signal, event);
       if (signal.aborted) {
         result = {
           ...result,

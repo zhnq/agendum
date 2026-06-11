@@ -31,6 +31,7 @@ It is not meant to replace exploratory Codex work. It is meant to run the workfl
 - **Run control**: cancel an in-flight run from the run detail page; running commands are terminated immediately.
 - **Escalation alerts**: notify on the Nth consecutive failure (then stay quiet until recovery) and on recovery from a losing streak.
 - **Token accounting**: per-run input/output token usage for agent tasks, with per-task totals.
+- **Event triggers**: configure event sources like notification channels; an event-bus loop polls them and fires bound tasks (one-to-many) on change, injecting the event payload — HTTP/JSON polling, RSS/Atom, and a command probe (universal adapter). The first check only establishes a baseline and does not fire.
 - **Scheduling**: cron rules, fixed intervals, legal workday times, startup triggers, manual runs, and webhook triggers.
 - **Flexible catch-up**: choose whether a task should run once after missed schedules or skip missed runs.
 - **Memory**: each agent report can become task memory and be injected into future runs.

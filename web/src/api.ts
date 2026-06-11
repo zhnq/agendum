@@ -17,6 +17,8 @@ import type {
   ProxySettings,
   NlChatMessage,
   NlChatResponse,
+  Source,
+  SourceInput,
 } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -145,6 +147,20 @@ export const api = {
     request<{ ok: boolean; reply?: string; error?: string }>(`/api/providers/${id}/test`, {
       method: 'POST',
     }),
+
+  // 触发事件源
+  listSources: () => request<Source[]>('/api/sources'),
+  createSource: (input: SourceInput) =>
+    request<Source>('/api/sources', { method: 'POST', body: JSON.stringify(input) }),
+  updateSource: (id: number | string, input: SourceInput) =>
+    request<Source>(`/api/sources/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
+  deleteSource: (id: number | string) =>
+    request<{ ok: true }>(`/api/sources/${id}`, { method: 'DELETE' }),
+  testSource: (id: number | string) =>
+    request<{ ok: boolean; fired?: boolean; status?: string; data?: unknown; error?: string }>(
+      `/api/sources/${id}/test`,
+      { method: 'POST' },
+    ),
 
   // 通知渠道
   listChannels: () => request<Channel[]>('/api/channels'),

@@ -1,6 +1,6 @@
 // 公共展示工具：枚举中文文案、时间格式化、调度摘要。
 import dayjs from 'dayjs';
-import type { RunTrigger, Schedule, ChannelType, NotifyOn } from './types';
+import type { RunTrigger, Schedule, ChannelType, NotifyOn, SourceType } from './types';
 
 export const triggerLabels: Record<RunTrigger, string> = {
   cron: '定时（cron）',
@@ -9,6 +9,13 @@ export const triggerLabels: Record<RunTrigger, string> = {
   manual: '手动',
   webhook: 'Webhook',
   catchup: '补跑',
+  event: '事件源',
+};
+
+export const sourceTypeLabels: Record<SourceType, string> = {
+  http_poll: 'HTTP/JSON 轮询',
+  rss: 'RSS/Atom',
+  command_probe: '命令探针',
 };
 
 export const notifyOnLabels: Record<NotifyOn, string> = {

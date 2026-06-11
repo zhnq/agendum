@@ -21,9 +21,10 @@ import {
   fmtTime,
   notifyOnLabels,
   scheduleSummary,
+  sourceTypeLabels,
   triggerLabels,
 } from '../labels';
-import type { Channel, MemoryEntry, Provider, Run, Task } from '../types';
+import type { Channel, MemoryEntry, Provider, Run, Source, Task } from '../types';
 
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
@@ -49,6 +50,7 @@ export default function TaskDetail() {
   const [memory, setMemory] = useState<MemoryEntry[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
   const [tokenStats, setTokenStats] = useState<{
     inputTokens: number;
@@ -83,6 +85,7 @@ export default function TaskDetail() {
     // 名称映射各自容错
     api.listProviders().then(setProviders).catch(() => {});
     api.listChannels().then(setChannels).catch(() => {});
+    api.listSources().then(setSources).catch(() => {});
   }, [load]);
 
   const runNow = async () => {
@@ -196,6 +199,16 @@ export default function TaskDetail() {
       value: `${fmtTime(task.lastRunAt)} ／ ${fmtTime(task.nextDueAt)}`,
     },
   ];
+  const triggeringSources = sources.filter((s) => s.taskIds.includes(task.id));
+  if (triggeringSources.length > 0) {
+    scheduleItems.push({
+      label: '事件源触发',
+      span: true,
+      value: triggeringSources
+        .map((s) => `${s.name}（${sourceTypeLabels[s.type]}${s.enabled ? '' : ' · 已停用'}）`)
+        .join('；'),
+    });
+  }
 
   const notifyItems: DescItem[] = [
     {

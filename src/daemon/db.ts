@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { DATA_DIR, LOG_DIR } from './paths';
 import type {
   Channel, ChannelInput, MemoryEntry, MemoryKind, Provider, ProviderInput,
-  Run, RunReport, RunStatus, RunTrigger, Task, TaskInput,
+  Run, RunReport, RunStatus, RunTrigger, Source, SourceInput, Task, TaskInput,
 } from '../shared/types';
 
 mkdirSync(LOG_DIR, { recursive: true });
@@ -80,6 +80,20 @@ CREATE TABLE IF NOT EXISTS channels (
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sources (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  config TEXT NOT NULL DEFAULT '{}',
+  check_interval_sec INTEGER NOT NULL DEFAULT 300,
+  task_ids TEXT NOT NULL DEFAULT '[]',
+  cursor TEXT,
+  last_checked_at TEXT,
+  last_fired_at TEXT,
+  last_status TEXT,
+  created_at TEXT NOT NULL
 );
 `);
 
@@ -399,6 +413,89 @@ export function deleteChannel(id: number) {
   db.query('DELETE FROM channels WHERE id=?').run(id);
 }
 
+// ---------- sources（触发事件源）----------
+
+function rowToSource(r: any): Source {
+  return {
+    id: r.id,
+    name: r.name,
+    type: r.type,
+    enabled: !!r.enabled,
+    config: JSON.parse(r.config || '{}'),
+    checkIntervalSec: r.check_interval_sec,
+    taskIds: safeJsonArray(r.task_ids),
+    lastCheckedAt: r.last_checked_at,
+    lastFiredAt: r.last_fired_at,
+    lastStatus: r.last_status,
+    createdAt: r.created_at,
+  };
+}
+
+const MIN_CHECK_INTERVAL = 30;
+
+function normInterval(n: unknown): number {
+  const v = Number(n);
+  return Number.isFinite(v) && v >= MIN_CHECK_INTERVAL ? Math.floor(v) : MIN_CHECK_INTERVAL;
+}
+
+export function listSources(): Source[] {
+  return db.query('SELECT * FROM sources ORDER BY id').all().map(rowToSource);
+}
+
+export function getSource(id: number): Source | null {
+  const r = db.query('SELECT * FROM sources WHERE id=?').get(id);
+  return r ? rowToSource(r) : null;
+}
+
+export function createSource(input: SourceInput): Source {
+  const res = db.query('INSERT INTO sources (name, type, enabled, config, check_interval_sec, task_ids, created_at) VALUES (?,?,?,?,?,?,?)')
+    .run(
+      input.name, input.type, input.enabled !== false ? 1 : 0, JSON.stringify(input.config ?? {}),
+      normInterval(input.checkIntervalSec), JSON.stringify(input.taskIds ?? []), nowIso(),
+    );
+  return getSource(Number(res.lastInsertRowid))!;
+}
+
+export function updateSource(id: number, input: SourceInput): Source | null {
+  if (!getSource(id)) return null;
+  // 配置变更后重置游标，避免旧游标对新 url/命令失效造成误判
+  db.query('UPDATE sources SET name=?, type=?, enabled=?, config=?, check_interval_sec=?, task_ids=?, cursor=NULL, last_status=NULL WHERE id=?')
+    .run(
+      input.name, input.type, input.enabled !== false ? 1 : 0, JSON.stringify(input.config ?? {}),
+      normInterval(input.checkIntervalSec), JSON.stringify(input.taskIds ?? []), id,
+    );
+  return getSource(id);
+}
+
+export function deleteSource(id: number) {
+  db.query('DELETE FROM sources WHERE id=?').run(id);
+}
+
+/** 内部：读源的持久游标 */
+export function getSourceCursor(id: number): any {
+  const r = db.query('SELECT cursor FROM sources WHERE id=?').get(id) as any;
+  return r?.cursor ? JSON.parse(r.cursor) : null;
+}
+
+/** 内部：一次检查后落库游标与状态 */
+export function recordSourceCheck(
+  id: number,
+  fields: { cursor?: any; fired?: boolean; status: string; checkedAt: string },
+) {
+  const sets = ['last_checked_at=?', 'last_status=?'];
+  const args: any[] = [fields.checkedAt, fields.status.slice(0, 300)];
+  if (fields.cursor !== undefined) {
+    sets.push('cursor=?');
+    args.push(JSON.stringify(fields.cursor));
+  }
+  if (fields.fired) {
+    sets.push('last_fired_at=?');
+    args.push(fields.checkedAt);
+  }
+  args.push(id);
+  db.query(`UPDATE sources SET ${sets.join(', ')} WHERE id=?`).run(...args);
+}
+
 // ---------- backup ----------
 
 /** 全量导出（不含磁盘上的运行日志文件与节假日缓存） */
@@ -407,6 +504,7 @@ export function exportBackup() {
     providers: listProviders(),
     channels: listChannels(),
     tasks: listTasks(),
+    sources: listSources(),
     runs: (db.query('SELECT * FROM runs ORDER BY id').all() as any[]).map(rowToRun),
     memory: (db.query('SELECT * FROM memory ORDER BY id').all() as any[]).map(rowToMemory),
     settings: Object.fromEntries(
@@ -420,19 +518,20 @@ export function importBackup(b: any): Record<string, number> {
   if (b?.app !== 'agendum' || typeof b.schema !== 'number') {
     throw new Error('不是有效的 Agendum 备份文件');
   }
-  if (b.schema > 1) {
+  if (b.schema > 2) {
     throw new Error(`备份 schema v${b.schema} 比当前程序支持的新，请先更新 Agendum`);
   }
   const providers: any[] = Array.isArray(b.providers) ? b.providers : [];
   const channels: any[] = Array.isArray(b.channels) ? b.channels : [];
   const tasks: any[] = Array.isArray(b.tasks) ? b.tasks : [];
+  const sources: any[] = Array.isArray(b.sources) ? b.sources : []; // schema≥2，旧备份无此字段
   const runs: any[] = Array.isArray(b.runs) ? b.runs : [];
   const memory: any[] = Array.isArray(b.memory) ? b.memory : [];
   const settings: Record<string, string> =
     b.settings && typeof b.settings === 'object' ? b.settings : {};
 
   const tx = db.transaction(() => {
-    db.exec('DELETE FROM tasks; DELETE FROM runs; DELETE FROM memory; DELETE FROM providers; DELETE FROM channels; DELETE FROM settings;');
+    db.exec('DELETE FROM tasks; DELETE FROM runs; DELETE FROM memory; DELETE FROM providers; DELETE FROM channels; DELETE FROM settings; DELETE FROM sources;');
     for (const p of providers) {
       db.query('INSERT INTO providers (id, name, protocol, base_url, api_key, model, is_default, proxy, created_at) VALUES (?,?,?,?,?,?,?,?,?)')
         .run(p.id, p.name, p.protocol, p.baseUrl, p.apiKey, p.model, p.isDefault ? 1 : 0, normProxyOverride(p.proxy), p.createdAt ?? nowIso());
@@ -467,6 +566,12 @@ export function importBackup(b: any): Record<string, number> {
       db.query('INSERT INTO memory (id, task_id, run_id, kind, content, created_at) VALUES (?,?,?,?,?,?)')
         .run(m.id, m.taskId, m.runId ?? null, m.kind, m.content, m.createdAt ?? nowIso());
     }
+    for (const s of sources) {
+      // 游标不随备份迁移：导入后视为全新，首次检查重新建立基线
+      db.query('INSERT INTO sources (id, name, type, enabled, config, check_interval_sec, task_ids, cursor, last_checked_at, last_fired_at, last_status, created_at) VALUES (?,?,?,?,?,?,?,NULL,NULL,NULL,NULL,?)')
+        .run(s.id, s.name, s.type, s.enabled === false ? 0 : 1, JSON.stringify(s.config ?? {}),
+          normInterval(s.checkIntervalSec), JSON.stringify(Array.isArray(s.taskIds) ? s.taskIds : []), s.createdAt ?? nowIso());
+    }
     for (const [k, v] of Object.entries(settings)) {
       db.query('INSERT INTO settings (key, value) VALUES (?,?)').run(k, String(v));
     }
@@ -477,6 +582,7 @@ export function importBackup(b: any): Record<string, number> {
     providers: providers.length,
     channels: channels.length,
     tasks: tasks.length,
+    sources: sources.length,
     runs: runs.length,
     memory: memory.length,
     settings: Object.keys(settings).length,

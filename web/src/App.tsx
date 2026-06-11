@@ -7,6 +7,7 @@ import {
   HistoryOutlined,
   PlusOutlined,
   SettingOutlined,
+  ThunderboltOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons';
 import { api } from './api';
@@ -21,6 +22,7 @@ import Runs from './pages/Runs';
 import RunDetailPage from './pages/RunDetail';
 import Providers from './pages/Providers';
 import Channels from './pages/Channels';
+import Sources from './pages/Sources';
 import Settings from './pages/Settings';
 
 const { Sider, Content } = Layout;
@@ -30,6 +32,7 @@ function useMenuKey(): string {
   if (pathname.startsWith('/runs')) return 'runs';
   if (pathname.startsWith('/providers')) return 'providers';
   if (pathname.startsWith('/channels')) return 'channels';
+  if (pathname.startsWith('/sources')) return 'sources';
   if (pathname.startsWith('/settings')) return 'settings';
   return 'tasks';
 }
@@ -47,6 +50,7 @@ function pageMeta(pathname: string): PageMeta {
   if (/^\/runs\//.test(pathname)) return { title: '运行详情', desc: '单次运行的简报、轨迹与日志' };
   if (pathname.startsWith('/providers')) return { title: 'Provider', desc: '模型供应商与连通性' };
   if (pathname.startsWith('/channels')) return { title: '通知渠道', desc: '运行结果的送达方式' };
+  if (pathname.startsWith('/sources')) return { title: '触发事件源', desc: '轮询外部变化、命中即触发任务' };
   if (pathname.startsWith('/settings')) return { title: '设置', desc: '应用启动与本机行为' };
   return { title: '任务', desc: '任务调度与运行状态' };
 }
@@ -137,6 +141,7 @@ export default function App() {
     { key: 'runs', icon: <HistoryOutlined />, label: <Link to="/runs">运行历史</Link> },
     { key: 'providers', icon: <ApiOutlined />, label: <Link to="/providers">Provider</Link> },
     { key: 'channels', icon: <BellOutlined />, label: <Link to="/channels">通知渠道</Link> },
+    { key: 'sources', icon: <ThunderboltOutlined />, label: <Link to="/sources">触发事件源</Link> },
     { key: 'settings', icon: <SettingOutlined />, label: <Link to="/settings">设置</Link> },
   ];
 
@@ -194,6 +199,7 @@ export default function App() {
       <Route path="/runs/:id" element={<RunDetailPage />} />
       <Route path="/providers" element={<Providers />} />
       <Route path="/channels" element={<Channels />} />
+      <Route path="/sources" element={<Sources />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

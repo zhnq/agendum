@@ -5,6 +5,7 @@ import { getAutostartStatus, setAutostartEnabled } from './autostart';
 import * as db from './db';
 import { nlChat } from './nltask';
 import { cancelRun } from './runner/cancel';
+import { checkSource } from './eventbus';
 import { sendToChannel } from './notify';
 import { executeTask } from './runner';
 import { chat } from './runner/agent/providers';
@@ -61,6 +62,23 @@ function normalizeTaskInput(body: any): TaskInput {
     injectMemory: body.injectMemory !== false,
     memoryReports: body.memoryReports != null ? Number(body.memoryReports) : 5,
     notifications: Array.isArray(body.notifications) ? body.notifications : [],
+  };
+}
+
+const SOURCE_TYPES = ['http_poll', 'rss', 'command_probe'];
+
+function normalizeSourceInput(body: any) {
+  if (!body?.name?.trim()) throw new Error('事件源名称不能为空');
+  if (!SOURCE_TYPES.includes(body.type)) throw new Error('type 必须是 http_poll / rss / command_probe');
+  return {
+    name: String(body.name).trim(),
+    type: body.type,
+    enabled: body.enabled !== false,
+    config: body.config && typeof body.config === 'object' ? body.config : {},
+    checkIntervalSec: Number(body.checkIntervalSec) || 300,
+    taskIds: Array.isArray(body.taskIds)
+      ? body.taskIds.map(Number).filter((n: number) => Number.isFinite(n))
+      : [],
   };
 }
 
@@ -163,7 +181,7 @@ export function startServer(scheduler: Scheduler) {
         if (pathname === '/api/backup/export' && method === 'GET') {
           const payload = {
             app: 'agendum',
-            schema: 1,
+            schema: 2,
             version: VERSION,
             exportedAt: new Date().toISOString(),
             ...db.exportBackup(),
@@ -362,6 +380,36 @@ $owner.Dispose()
           try {
             await sendToChannel(c, '[Agendum] 测试通知', `渠道「${c.name}」配置正常 · ${new Date().toLocaleString()}`);
             return json({ ok: true });
+          } catch (e) {
+            return json({ ok: false, error: String(e).slice(0, 500) });
+          }
+        }
+
+        // ---- sources（触发事件源）----
+        if (pathname === '/api/sources') {
+          if (method === 'GET') return json(db.listSources());
+          if (method === 'POST') return json(db.createSource(normalizeSourceInput(await req.json())), 201);
+        }
+        m = pathname.match(/^\/api\/sources\/(\d+)$/);
+        if (m) {
+          const id = Number(m[1]);
+          if (method === 'PUT') {
+            const s = db.updateSource(id, normalizeSourceInput(await req.json()));
+            return s ? json(s) : err('事件源不存在', 404);
+          }
+          if (method === 'DELETE') {
+            db.deleteSource(id);
+            return json({ ok: true });
+          }
+        }
+        m = pathname.match(/^\/api\/sources\/(\d+)\/test$/);
+        if (m && method === 'POST') {
+          const s = db.getSource(Number(m[1]));
+          if (!s) return err('事件源不存在', 404);
+          try {
+            // 用当前游标试跑一次，但不落库、不触发任务，仅给用户预览会取到什么
+            const res = await checkSource(s, db.getSourceCursor(s.id));
+            return json({ ok: true, fired: res.fired, status: res.status, data: res.data });
           } catch (e) {
             return json({ ok: false, error: String(e).slice(0, 500) });
           }
