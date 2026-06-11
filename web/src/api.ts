@@ -15,7 +15,8 @@ import type {
   UpdateCheck,
   UpdateStatus,
   ProxySettings,
-  NlTaskDraft,
+  NlChatMessage,
+  NlChatResponse,
 } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -116,8 +117,11 @@ export const api = {
     request<{ inputTokens: number; outputTokens: number; countedRuns: number }>(
       `/api/tasks/${id}/token-stats`,
     ),
-  nlTask: (text: string) =>
-    request<NlTaskDraft>('/api/nl-task', { method: 'POST', body: JSON.stringify({ text }) }),
+  nlChat: (messages: NlChatMessage[], force = false) =>
+    request<NlChatResponse>('/api/nl-task/chat', {
+      method: 'POST',
+      body: JSON.stringify({ messages, force }),
+    }),
 
   // 运行
   listRuns: (limit = 50) => request<Run[]>(`/api/runs?limit=${limit}`),

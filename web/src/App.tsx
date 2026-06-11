@@ -13,6 +13,7 @@ import { api } from './api';
 import agendumMark from './assets/agendum-mark.svg';
 import { useMediaQuery } from './useMediaQuery';
 import type { Health } from './types';
+import NlChatWidget from './components/NlChatWidget';
 import TaskList from './pages/TaskList';
 import TaskEdit from './pages/TaskEdit';
 import TaskDetail from './pages/TaskDetail';
@@ -255,6 +256,7 @@ export default function App() {
         </div>
         {pageHeader}
         <Content style={{ padding: '16px 16px 48px', overflow: 'auto' }}>{routes}</Content>
+        <NlChatWidget />
       </Layout>
     );
   }
@@ -313,6 +315,7 @@ export default function App() {
         {pageHeader}
         <Content style={{ padding: '24px 28px 48px', overflow: 'auto' }}>{routes}</Content>
       </Layout>
+      <NlChatWidget />
     </Layout>
   );
 }

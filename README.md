@@ -27,7 +27,7 @@ It is not meant to replace exploratory Codex work. It is meant to run the workfl
 - **Script tasks**: run PowerShell commands on a schedule, with timeout, retries, working directory, and environment variables.
 - **Agent tasks**: run natural-language instructions through a local agent loop that can execute commands, read/write files, update task memory, and submit structured reports.
 - **Provider fallback chain**: per-task ordered backup providers; when the primary provider fails, the run degrades to the next one mid-flight.
-- **One-sentence task creation**: describe the task in natural language and let the default provider draft the full configuration for review.
+- **Conversational task creation**: a side-handle opens a chat panel where the model asks one clarifying question at a time (single/multi-choice or free text), then drafts the full configuration into the form for review; skip the questions anytime with "generate now".
 - **Run control**: cancel an in-flight run from the run detail page; running commands are terminated immediately.
 - **Escalation alerts**: notify on the Nth consecutive failure (then stay quiet until recovery) and on recovery from a losing streak.
 - **Token accounting**: per-run input/output token usage for agent tasks, with per-task totals.

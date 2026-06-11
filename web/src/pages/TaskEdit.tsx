@@ -22,7 +22,6 @@ import {
   MinusCircleOutlined,
   PlusOutlined,
   RobotOutlined,
-  ThunderboltOutlined,
 } from '@ant-design/icons';
 import { api } from '../api';
 import ScheduleBuilder from '../components/ScheduleBuilder';
@@ -34,6 +33,7 @@ import {
   type ScheduleRule,
 } from '../cronRules';
 import { channelTypeLabels, notifyOnLabels } from '../labels';
+import { NL_DRAFT_EVENT, takeNlDraft } from '../nlDraft';
 import { useMediaQuery } from '../useMediaQuery';
 import type { CatchUp, Channel, NotifyOn, Provider, Task, TaskInput, TaskType } from '../types';
 
@@ -315,14 +315,12 @@ export default function TaskEdit() {
     }
   };
 
-  const [nlText, setNlText] = useState('');
-  const [nlLoading, setNlLoading] = useState(false);
-
-  const generateFromNl = async () => {
-    if (!nlText.trim()) return;
-    setNlLoading(true);
-    try {
-      const d = await api.nlTask(nlText.trim());
+  // 对话式建任务的草稿回填：挂载时读取暂存草稿；已在本页时由抽屉派发事件即时回填
+  useEffect(() => {
+    if (!isNew) return;
+    const apply = () => {
+      const d = takeNlDraft();
+      if (!d) return;
       form.setFieldsValue({
         name: d.name,
         type: d.type,
@@ -336,14 +334,18 @@ export default function TaskEdit() {
         atStartup: d.schedule.atStartup,
         catchUp: d.catchUp,
         timeoutSec: d.timeoutSec,
+        notifications: d.notifications.map((n) => ({
+          channelId: n.channelId,
+          on: n.on,
+          streakThreshold: n.streakThreshold,
+        })),
       });
       message.success('草稿已回填，请核对后创建');
-    } catch (e) {
-      message.error((e as Error).message);
-    } finally {
-      setNlLoading(false);
-    }
-  };
+    };
+    apply();
+    window.addEventListener(NL_DRAFT_EVENT, apply);
+    return () => window.removeEventListener(NL_DRAFT_EVENT, apply);
+  }, [isNew, form]);
 
   const pickWorkdir = async () => {
     setPicking(true);
@@ -553,32 +555,6 @@ export default function TaskEdit() {
       )}
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0, maxWidth: 860 }}>
-          {isNew && (
-            <div
-              className="panel panel-pad"
-              style={{ marginBottom: 16, background: '#eef4fe', borderColor: 'var(--accent-soft)' }}
-            >
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>
-                <ThunderboltOutlined style={{ color: 'var(--accent)', marginRight: 6 }} />
-                一句话生成配置
-              </div>
-              <Space.Compact style={{ width: '100%' }}>
-                <Input
-                  value={nlText}
-                  onChange={(e) => setNlText(e.target.value)}
-                  onPressEnter={() => void generateFromNl()}
-                  placeholder="如：每个法定工作日 9 点检查 D 盘剩余空间，少于 50G 就清理临时目录并报告结果"
-                  disabled={nlLoading}
-                />
-                <Button type="primary" loading={nlLoading} onClick={() => void generateFromNl()}>
-                  生成
-                </Button>
-              </Space.Compact>
-              <div style={{ marginTop: 6, color: 'var(--muted)', fontSize: 12 }}>
-                由全局默认 Provider 翻译成配置草稿回填下方表单，创建前请核对
-              </div>
-            </div>
-          )}
           <Form<FormValues>
             form={form}
             layout="vertical"

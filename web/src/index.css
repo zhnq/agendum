@@ -335,3 +335,157 @@ body {
   font-size: 13px;
   word-break: break-all;
 }
+
+/* ===== 对话式建任务：右侧贴边拉手 ===== */
+.nl-handle {
+  position: fixed;
+  right: 0;
+  top: 52%;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 7px 13px;
+  border: 1px solid var(--accent-strong);
+  border-right: none;
+  border-radius: 14px 0 0 14px;
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+  color: #fff;
+  cursor: pointer;
+  box-shadow: -2px 4px 14px rgba(37, 99, 235, 0.32);
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.nl-handle:hover {
+  transform: translateX(-4px);
+  box-shadow: -4px 6px 18px rgba(37, 99, 235, 0.45);
+}
+
+.nl-handle-icon {
+  font-size: 16px;
+  animation: nl-bob 2.8s ease-in-out infinite;
+}
+
+.nl-handle-text {
+  writing-mode: vertical-rl;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 3px;
+}
+
+@keyframes nl-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  30% {
+    transform: translateY(-2px) rotate(-8deg);
+  }
+  60% {
+    transform: translateY(0) rotate(6deg);
+  }
+}
+
+/* ===== 对话式建任务：抽屉聊天面板 ===== */
+.nl-chat-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px;
+}
+
+.nl-chat-empty {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 8px 4px;
+}
+
+.nl-bubble {
+  max-width: 88%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.nl-bubble-ai {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-top-left-radius: 4px;
+}
+
+.nl-bubble-user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #fff;
+  border-top-right-radius: 4px;
+}
+
+.nl-options {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 2px 0 0 8px;
+}
+
+.nl-options-hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 2px 0 0 8px;
+}
+
+.nl-draft-card {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid var(--accent-soft);
+  border-radius: 12px;
+  background: #f4f8ff;
+}
+
+.nl-draft-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.nl-draft-label {
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+  padding-top: 1px;
+  width: 28px;
+}
+
+.nl-draft-clamp {
+  display: flex;
+}
+
+.nl-draft-clamp > :not(.nl-draft-label) {
+  overflow: hidden;
+}
+
+.nl-draft-card .nl-draft-clamp {
+  max-height: 96px;
+  overflow: hidden;
+}
+
+.nl-chat-input {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  background: #fbfcfe;
+}
+

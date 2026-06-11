@@ -1,58 +1,121 @@
-// 自然语言 → 任务配置草稿：用全局默认 provider 把一句话翻译成 TaskInput 骨架，
-// 只生成草稿回填表单，由人确认后才真正创建任务。
-import type { NlTaskDraft } from '../shared/types';
+// 对话式自然语言 → 任务配置草稿：模型通过 ask_user 工具逐题问询补全信息，
+// 信息足够后调用 submit_draft 提交草稿回填表单，由人确认后才真正创建任务。
+// 后端无会话状态：完整对话历史由前端持有、每轮整体提交。
+import type {
+  Channel,
+  NlChatMessage,
+  NlChatResponse,
+  NlQuestion,
+  NlTaskDraft,
+  NotifyOn,
+} from '../shared/types';
 import * as db from './db';
-import { chat } from './runner/agent/providers';
+import { chat, type NeutralMsg, type ToolDef } from './runner/agent/providers';
 
-const SYSTEM = `你是 Agendum（Windows 本地定时任务系统）的任务配置生成器。把用户的一句话需求转成一个 JSON 配置对象。
-只输出 JSON 本身：不要 markdown 代码块、不要任何解释文字。
+/** 问询轮数上限，达到后强制提交草稿 */
+const MAX_QUESTIONS = 6;
 
-JSON 结构：
-{
-  "name": "简短任务名（中文）",
-  "type": "script" 或 "agent",
-  "command": "PowerShell 命令行" 或 null,
-  "prompt": "agent 任务指令" 或 null,
-  "schedule": {
-    "crons": ["标准 5 段 cron（分 时 日 月 周），本地时区"],
-    "intervalMinutes": 数字或 null,
-    "workdayTimes": ["HH:mm"],
-    "atStartup": false,
-    "webhookEnabled": false
-  },
-  "catchUp": "skip" 或 "run_once",
-  "timeoutSec": 300
+function systemPrompt(channels: Channel[]): string {
+  const channelList =
+    channels.length > 0
+      ? channels.map((c) => `  - channelId=${c.id} ${c.name}（${c.type}）`).join('\n')
+      : '  （无，notifications 必须为 []）';
+  return `你是 Agendum（Windows 本地定时任务系统）的任务配置助手，目标是把用户的需求变成一份任务配置草稿。
+
+用户发送的需求可能不太完善，需要进一步问询，但注意每次只能问一个问题，并尽可能提供单/多选项，或要求用户输入文本补充信息，以符合系统的表单要求。
+
+工作方式：
+- 每轮必须调用且只调用一个工具：信息不足时用 ask_user 问一个问题；信息足够时用 submit_draft 提交草稿。不要输出工具调用之外的普通文本。
+- 只问对配置有实际影响、且无法从需求中推断的问题（典型：执行时间、具体做什么、失败时要不要通知）。能推断的不要反复确认。
+- 单选/多选给 2~5 个具体、互斥的选项；只有开放性信息（具体命令、路径、prompt 细节）才用 text。
+- 最多问 ${MAX_QUESTIONS} 个问题；用户表示"直接生成/随便/都行"时立即 submit_draft，未知项取合理默认。
+
+草稿字段规则：
+- 仅当用户给出了可以直接执行的具体命令/脚本路径时才用 type=script（command 填命令，prompt 为 null）；其余一律 agent（prompt 写清楚：每次运行做什么、成功标准、失败时如何处理，用用户的语言风格扩写，command 为 null）。
+- "每天 8 点" -> schedule.crons: ["0 8 * * *"]；"每周一 9 点" -> ["0 9 * * 1"]；"每月 1 号 10 点" -> ["0 10 1 * *"]。
+- "工作日"（仅指周一到周五）用 cron 的 1-5；"法定工作日 / 跳过节假日 / 调休也要跑" 才用 schedule.workdayTimes（自动按中国法定节假日跳过与补班）。
+- "每隔 N 分钟/小时" 用 schedule.intervalMinutes，不要用 cron。
+- 用户提到"错过要补 / 开机补跑"才用 catchUp: "run_once"，否则 "skip"。
+- 用户提到"开机/启动时执行"则 schedule.atStartup: true。
+- 没提到时间则 crons/workdayTimes 为空数组、intervalMinutes 为 null（手动触发）。
+- timeoutSec 默认 300，长任务可放宽。
+
+通知绑定规则：
+- notifications 只能引用下方可用渠道的 channelId；用户不需要通知或无可用渠道时为 []。
+- on 取值：failure（每次失败）/ success（每次成功）/ always（每次运行）/ failure_streak（连续失败达 N 次告警一次，streakThreshold 默认 3）/ recovery（从连败恢复）。
+
+可用通知渠道：
+${channelList}`;
 }
 
-规则：
-- 仅当用户给出了可以直接执行的具体命令/脚本路径时才用 script（command 填命令，prompt 为 null）；其余一律 agent（prompt 写清楚：每次运行做什么、成功标准、失败时如何处理，prompt 用用户的语言风格扩写，command 为 null）。
-- "每天 8 点" -> crons: ["0 8 * * *"]；"每周一 9 点" -> ["0 9 * * 1"]；"每月 1 号 10 点" -> ["0 10 1 * *"]。
-- "工作日"（仅指周一到周五）用 cron 的 1-5；"法定工作日 / 跳过节假日 / 调休也要跑" 才用 workdayTimes（它会自动按中国法定节假日跳过与补班）。
-- "每隔 N 分钟/小时" 用 intervalMinutes，不要用 cron。
-- 用户提到"错过要补 / 开机补跑"才用 catchUp: "run_once"，否则 "skip"。
-- 用户提到"开机/启动时执行"则 atStartup: true。
-- 没提到时间就让 crons/workdayTimes 为空数组、intervalMinutes 为 null（手动触发）。`;
+const ASK_USER: ToolDef = {
+  name: 'ask_user',
+  description:
+    '向用户提一个澄清问题。kind=single 单选、multi 多选（两者必须给 2~5 个 options）、text 要求用户输入文本。',
+  schema: {
+    type: 'object',
+    properties: {
+      question: { type: 'string', description: '问题本身，简短明确' },
+      kind: { type: 'string', enum: ['single', 'multi', 'text'] },
+      options: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'single/multi 的备选项，text 时省略',
+      },
+    },
+    required: ['question', 'kind'],
+  },
+};
 
-export async function generateTaskDraft(text: string): Promise<NlTaskDraft> {
-  const provider = db.getDefaultProvider();
-  if (!provider) throw new Error('未配置任何模型 Provider，无法生成');
-  const turn = await chat(provider, provider.model, SYSTEM, [{ role: 'user', text }], []);
-  const raw = turn.text.trim();
-  // 容错：剥 markdown 代码块、截取首个 JSON 对象
-  const m = raw.replace(/```(?:json)?/gi, '').match(/\{[\s\S]*\}/);
-  if (!m) throw new Error(`模型未返回有效 JSON：${raw.slice(0, 200)}`);
-  let d: any;
-  try {
-    d = JSON.parse(m[0]);
-  } catch {
-    throw new Error(`模型返回的 JSON 解析失败：${m[0].slice(0, 200)}`);
-  }
-  const s = d.schedule ?? {};
+const SUBMIT_DRAFT: ToolDef = {
+  name: 'submit_draft',
+  description: '信息足够时提交任务配置草稿（之后由用户在表单中核对修改）。',
+  schema: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: '简短任务名（中文）' },
+      type: { type: 'string', enum: ['script', 'agent'] },
+      command: { type: ['string', 'null'], description: 'script 的 PowerShell 命令行' },
+      prompt: { type: ['string', 'null'], description: 'agent 的任务指令' },
+      schedule: {
+        type: 'object',
+        properties: {
+          crons: { type: 'array', items: { type: 'string' }, description: '标准 5 段 cron（分 时 日 月 周），本地时区' },
+          intervalMinutes: { type: ['number', 'null'] },
+          workdayTimes: { type: 'array', items: { type: 'string' }, description: '法定工作日触发时刻 HH:mm' },
+          atStartup: { type: 'boolean' },
+        },
+        required: ['crons', 'intervalMinutes', 'workdayTimes', 'atStartup'],
+      },
+      catchUp: { type: 'string', enum: ['skip', 'run_once'] },
+      timeoutSec: { type: 'number' },
+      notifications: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            channelId: { type: 'number' },
+            on: { type: 'string', enum: ['always', 'failure', 'success', 'failure_streak', 'recovery'] },
+            streakThreshold: { type: 'number' },
+          },
+          required: ['channelId', 'on'],
+        },
+      },
+    },
+    required: ['name', 'type', 'schedule', 'catchUp', 'timeoutSec', 'notifications'],
+  },
+};
+
+const ALLOWED_ON: NotifyOn[] = ['always', 'failure', 'success', 'failure_streak', 'recovery'];
+
+function normalizeDraft(d: any, fallbackPrompt: string, channels: Channel[]): NlTaskDraft {
+  const s = d?.schedule ?? {};
+  const validIds = new Set(channels.map((c) => c.id));
   return {
-    name: String(d.name ?? '').slice(0, 100) || '未命名任务',
-    type: d.type === 'script' ? 'script' : 'agent',
-    command: d.type === 'script' ? String(d.command ?? '') : null,
-    prompt: d.type === 'script' ? null : String(d.prompt ?? text),
+    name: String(d?.name ?? '').slice(0, 100) || '未命名任务',
+    type: d?.type === 'script' ? 'script' : 'agent',
+    command: d?.type === 'script' ? String(d?.command ?? '') : null,
+    prompt: d?.type === 'script' ? null : String(d?.prompt ?? fallbackPrompt),
     schedule: {
       crons: Array.isArray(s.crons) ? s.crons.map(String).filter((c: string) => c.trim()) : [],
       intervalMinutes: s.intervalMinutes ? Number(s.intervalMinutes) : null,
@@ -62,7 +125,65 @@ export async function generateTaskDraft(text: string): Promise<NlTaskDraft> {
       atStartup: !!s.atStartup,
       webhookEnabled: false,
     },
-    catchUp: d.catchUp === 'run_once' ? 'run_once' : 'skip',
-    timeoutSec: Number(d.timeoutSec) || 300,
+    catchUp: d?.catchUp === 'run_once' ? 'run_once' : 'skip',
+    timeoutSec: Number(d?.timeoutSec) || 300,
+    notifications: (Array.isArray(d?.notifications) ? d.notifications : [])
+      .filter(
+        (n: any) => n && validIds.has(Number(n.channelId)) && ALLOWED_ON.includes(n.on as NotifyOn),
+      )
+      .map((n: any) => ({
+        channelId: Number(n.channelId),
+        on: n.on as NotifyOn,
+        ...(n.on === 'failure_streak' || n.on === 'recovery'
+          ? { streakThreshold: Number(n.streakThreshold) || (n.on === 'failure_streak' ? 3 : 1) }
+          : {}),
+      })),
   };
+}
+
+function normalizeQuestion(q: any): NlQuestion {
+  const options = (Array.isArray(q?.options) ? q.options : [])
+    .map((o: any) => String(o).trim())
+    .filter(Boolean)
+    .slice(0, 8);
+  let kind: NlQuestion['kind'] = q?.kind === 'single' || q?.kind === 'multi' ? q.kind : 'text';
+  // 选项不足两个时单/多选退化为文本输入
+  if (kind !== 'text' && options.length < 2) kind = 'text';
+  return {
+    question: String(q?.question ?? '').trim() || '请补充更多信息',
+    kind,
+    options: kind === 'text' ? [] : options,
+  };
+}
+
+export async function nlChat(messages: NlChatMessage[], force = false): Promise<NlChatResponse> {
+  const provider = db.getDefaultProvider();
+  if (!provider) throw new Error('未配置任何模型 Provider，无法生成');
+  const channels = db.listChannels();
+
+  const lastUserText = [...messages].reverse().find((m) => m.role === 'user')?.text ?? '';
+  const asked = messages.filter((m) => m.role === 'assistant').length;
+  const mustSubmit = force || asked >= MAX_QUESTIONS;
+
+  const neutral: NeutralMsg[] = messages.map((m) => ({ role: m.role, text: m.text }));
+  if (mustSubmit) {
+    const directive = '（系统指令）请立即调用 submit_draft 提交草稿，不要再提问；未知项取合理默认。';
+    const last = neutral[neutral.length - 1];
+    // 避免连续两条 user 消息（anthropic 协议要求角色交替）
+    if (last?.role === 'user') last.text = `${last.text}\n${directive}`;
+    else neutral.push({ role: 'user', text: directive });
+  }
+
+  const tools = mustSubmit ? [SUBMIT_DRAFT] : [ASK_USER, SUBMIT_DRAFT];
+  const turn = await chat(provider, provider.model, systemPrompt(channels), neutral, tools);
+
+  const submit = turn.toolCalls.find((c) => c.name === 'submit_draft');
+  if (submit) return { type: 'draft', draft: normalizeDraft(submit.input, lastUserText, channels) };
+  const ask = turn.toolCalls.find((c) => c.name === 'ask_user');
+  if (ask) return { type: 'question', question: normalizeQuestion(ask.input) };
+
+  // 容错：模型没调工具直接说话——若像问题就当作文本问题，否则报错
+  const text = turn.text.trim();
+  if (!mustSubmit && text) return { type: 'question', question: { question: text, kind: 'text', options: [] } };
+  throw new Error('模型未按要求提交草稿，请重试，或换一个支持工具调用的默认 Provider');
 }

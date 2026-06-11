@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { RunDetail, TaskInput, TranscriptEvent } from '../shared/types';
 import { getAutostartStatus, setAutostartEnabled } from './autostart';
 import * as db from './db';
-import { generateTaskDraft } from './nltask';
+import { nlChat } from './nltask';
 import { cancelRun } from './runner/cancel';
 import { sendToChannel } from './notify';
 import { executeTask } from './runner';
@@ -270,11 +270,20 @@ $owner.Dispose()
           return json(db.taskTokenTotals(Number(m[1])));
         }
 
-        // ---- 自然语言生成任务草稿 ----
-        if (pathname === '/api/nl-task' && method === 'POST') {
+        // ---- 对话式自然语言生成任务草稿（无会话状态，历史由前端整体提交） ----
+        if (pathname === '/api/nl-task/chat' && method === 'POST') {
           const body = await req.json();
-          if (!body?.text?.trim()) return err('text 不能为空');
-          return json(await generateTaskDraft(String(body.text).slice(0, 2000)));
+          const messages = (Array.isArray(body?.messages) ? body.messages : [])
+            .filter(
+              (m: any) =>
+                m && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string',
+            )
+            .map((m: any) => ({ role: m.role, text: String(m.text).slice(0, 4000) }))
+            .slice(-40);
+          if (!messages.some((m: any) => m.role === 'user' && m.text.trim())) {
+            return err('messages 需要至少一条用户消息');
+          }
+          return json(await nlChat(messages, !!body?.force));
         }
 
         // ---- runs ----

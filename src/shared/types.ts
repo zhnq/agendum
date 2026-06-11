@@ -110,7 +110,31 @@ export interface NlTaskDraft {
   schedule: Schedule;
   catchUp: CatchUp;
   timeoutSec: number;
+  /** 建议的通知绑定，channelId 一定指向已存在的渠道 */
+  notifications: NotificationBinding[];
 }
+
+// ---- 对话式建任务 ----
+/**
+ * 对话历史由前端持有、每轮整体提交（后端无会话状态）。
+ * assistant 消息的 text 是后端返回内容的 JSON 序列化，前端原样存储回传即可。
+ */
+export interface NlChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
+/** 模型向用户提的一个澄清问题 */
+export interface NlQuestion {
+  question: string;
+  /** single=单选 multi=多选（带 options），text=自由文本 */
+  kind: 'single' | 'multi' | 'text';
+  options: string[];
+}
+
+export type NlChatResponse =
+  | { type: 'question'; question: NlQuestion }
+  | { type: 'draft'; draft: NlTaskDraft };
 
 /** agent 运行轨迹中的一条事件 */
 export interface TranscriptEvent {
