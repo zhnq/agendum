@@ -160,3 +160,10 @@ export interface Health {
   /** 正在运行中的 run 数 */
   runningCount: number;
 }
+
+export interface AutostartStatus {
+  supported: boolean;
+  enabled: boolean;
+  command: string | null;
+  legacyEnabled: boolean;
+}

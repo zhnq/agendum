@@ -29,6 +29,7 @@ It is not meant to replace exploratory Codex work. It is meant to run the workfl
 - **Memory**: each agent report can become task memory and be injected into future runs.
 - **Providers**: configure model providers using Anthropic-compatible or OpenAI-compatible protocols.
 - **Notifications**: Feishu/Lark webhook, lark-cli command templates, ServerChan, and Windows toast notifications.
+- **Startup control**: enable or disable Windows current-user autostart from the Settings page.
 - **Run evidence**: inspect run history, script logs, agent transcripts, summaries, failures, and memory entries.
 - **Local-first**: daemon listens on `127.0.0.1` and stores data in a local SQLite database.
 
@@ -135,6 +136,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall-autostar
    - Use `script` for deterministic PowerShell jobs.
    - Use `agent` for flexible natural-language workflows.
 5. Configure schedule, catch-up behavior, timeout, memory injection, and notification rules.
+6. Go to **设置** if you want Agendum to start automatically after Windows login.
 
 You can paste a stable Codex automation prompt into an Agent task and let Agendum run it on your own cadence.
 
@@ -145,13 +147,13 @@ Agendum can be packaged into a Windows installer exe.
 Build staging files and the installer:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows-installer.ps1 -Version 0.1.0
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-windows-installer.ps1 -Version 0.1.1
 ```
 
 Output:
 
 ```text
-release\AgendumSetup-0.1.0.exe
+release\AgendumSetup-0.1.1.exe
 ```
 
 The installer includes:

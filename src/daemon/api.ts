@@ -1,5 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { RunDetail, TaskInput, TranscriptEvent } from '../shared/types';
+import { getAutostartStatus, setAutostartEnabled } from './autostart';
 import * as db from './db';
 import { sendToChannel } from './notify';
 import { executeTask } from './runner';
@@ -101,6 +103,15 @@ export function startServer(scheduler: Scheduler) {
         // ---- health ----
         if (pathname === '/health') {
           return json({ ok: true, version: VERSION, startedAt, runningCount: db.runningCount() });
+        }
+
+        // ---- settings ----
+        if (pathname === '/api/settings/autostart') {
+          if (method === 'GET') return json(await getAutostartStatus());
+          if (method === 'PUT') {
+            const body = await req.json();
+            return json(await setAutostartEnabled(!!body.enabled));
+          }
         }
 
         // ---- webhook 触发 ----

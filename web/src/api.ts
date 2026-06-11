@@ -11,6 +11,7 @@ import type {
   Channel,
   ChannelInput,
   Health,
+  AutostartStatus,
 } from './types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -48,6 +49,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   // 健康检查
   health: () => request<Health>('/health'),
+
+  // 设置
+  getAutostart: () => request<AutostartStatus>('/api/settings/autostart'),
+  setAutostart: (enabled: boolean) =>
+    request<AutostartStatus>('/api/settings/autostart', {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    }),
 
   // 本机文件夹选择框（由 daemon 弹出原生对话框）
   pickFolder: () => request<{ path: string | null }>('/api/pick-folder', { method: 'POST' }),
