@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Button, Descriptions, message, Popconfirm, Space, Switch, Typography } from 'antd';
+import { Alert, Button, message, Popconfirm, Space, Switch } from 'antd';
 import { CloudDownloadOutlined, PoweroffOutlined, ReloadOutlined, SyncOutlined } from '@ant-design/icons';
 import { api } from '../api';
 import type { AutostartStatus, Health, UpdateCheck } from '../types';
-
-const { Text } = Typography;
 
 const PHASE_LABELS: Record<string, string> = {
   pulling: 'git pull --ff-only',
@@ -106,10 +104,7 @@ function UpdateCard() {
     }
   };
 
-  const modeText =
-    health?.mode === 'installer'
-      ? '安装版 · 更新 = 下载 release 安装包静默重装'
-      : '源码运行 · 更新 = git pull --ff-only + 重建 web + 重启';
+  const modeText = health?.mode === 'installer' ? '安装版' : '源码运行';
 
   const upToDate = check && !check.hasUpdate;
 
@@ -122,7 +117,7 @@ function UpdateCard() {
             软件更新
           </div>
           <div style={{ marginTop: 6, color: 'var(--muted)', fontSize: 13 }}>
-            当前 v{health?.version ?? '…'} · {modeText}。纯手动：daemon 从不主动联网检查。
+            当前 v{health?.version ?? '…'} · {modeText}
           </div>
         </div>
         <Button icon={<ReloadOutlined />} loading={checking} disabled={updating} onClick={() => void doCheck()}>
@@ -245,7 +240,7 @@ export default function Settings() {
               开机自启
             </div>
             <div style={{ marginTop: 6, color: 'var(--muted)', fontSize: 13 }}>
-              Windows 登录后自动启动 Agendum 托盘守护和本地 daemon，让定时任务在后台持续运行。
+              Windows 登录后拉起托盘守护与 daemon（当前用户 HKCU Run 键）
             </div>
           </div>
           <Switch
@@ -276,38 +271,6 @@ export default function Settings() {
           />
         ) : null}
 
-        <Descriptions
-          size="small"
-          column={1}
-          style={{ marginTop: 18 }}
-          items={[
-            {
-              key: 'state',
-              label: '当前状态',
-              children: status?.enabled ? '已开启' : '未开启',
-            },
-            {
-              key: 'scope',
-              label: '作用范围',
-              children: '当前 Windows 用户',
-            },
-            {
-              key: 'command',
-              label: '启动命令',
-              children: status?.command ? (
-                <Text code copyable style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>
-                  {status.command}
-                </Text>
-              ) : (
-                <span style={{ color: 'var(--muted)' }}>未注册</span>
-              ),
-            },
-          ]}
-        />
-
-        <Button icon={<ReloadOutlined />} loading={loading} style={{ marginTop: 12 }} onClick={() => void load()}>
-          重新检测
-        </Button>
       </div>
 
       <UpdateCard />
