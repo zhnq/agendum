@@ -17,6 +17,9 @@ data/*.db
 data/*.db-*
 data/logs/
 data/tray.log
+# 备份导出含 provider API Key，绝不可入库
+data/*.json.gz
+*backup*.json.gz
 
 .DS_Store
 Thumbs.db

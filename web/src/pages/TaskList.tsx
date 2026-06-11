@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Button, Collapse, Dropdown, message, Popconfirm, Skeleton, Table } from 'antd';
+import { Button, Collapse, Dropdown, message, Modal, Skeleton, Table } from 'antd';
 import { MoreOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -76,7 +76,19 @@ interface RowActionsProps {
 function RowActions({ task, onRun, onToggle, onDelete }: RowActionsProps) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // 删除确认用 Modal.confirm，而非内嵌 Popconfirm：菜单项点击会让 Dropdown 自动收起，
+  // 内嵌在菜单里的 Popconfirm 会随之卸载，确认框来不及点击 → 删除请求发不出去。
+  const confirmDelete = () => {
+    Modal.confirm({
+      title: `确定删除任务「${task.name}」？`,
+      content: '任务及其运行历史将被删除，不可恢复。',
+      okText: '删除',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: () => onDelete(task),
+    });
+  };
 
   return (
     <span onClick={(e) => e.stopPropagation()}>
@@ -86,56 +98,25 @@ function RowActions({ task, onRun, onToggle, onDelete }: RowActionsProps) {
       <Dropdown
         trigger={['click']}
         open={menuOpen}
-        onOpenChange={(open) => {
-          if (!open && confirmOpen) return; // 删除确认中保持菜单打开
-          setMenuOpen(open);
-        }}
+        onOpenChange={setMenuOpen}
         menu={{
           items: [
             { key: 'run', label: '立即运行' },
             { key: 'edit', label: '编辑' },
             { key: 'toggle', label: task.enabled ? '停用' : '启用' },
             { type: 'divider' },
-            {
-              key: 'delete',
-              danger: true,
-              label: (
-                <Popconfirm
-                  title={`确定删除任务「${task.name}」？`}
-                  description="任务及其运行历史将被删除，不可恢复。"
-                  okText="删除"
-                  okButtonProps={{ danger: true }}
-                  cancelText="取消"
-                  open={confirmOpen}
-                  onOpenChange={(open) => {
-                    if (!open) {
-                      setConfirmOpen(false);
-                      setMenuOpen(false);
-                    }
-                  }}
-                  onConfirm={() => {
-                    setConfirmOpen(false);
-                    setMenuOpen(false);
-                    onDelete(task);
-                  }}
-                >
-                  <span>删除</span>
-                </Popconfirm>
-              ),
-            },
+            { key: 'delete', danger: true, label: '删除' },
           ],
           onClick: ({ key }) => {
+            setMenuOpen(false);
             if (key === 'run') {
-              setMenuOpen(false);
               onRun(task);
             } else if (key === 'edit') {
-              setMenuOpen(false);
               navigate(`/tasks/${task.id}/edit`);
             } else if (key === 'toggle') {
-              setMenuOpen(false);
               onToggle(task, !task.enabled);
             } else if (key === 'delete') {
-              setConfirmOpen(true);
+              confirmDelete();
             }
           },
         }}
