@@ -175,17 +175,26 @@ async function sendLarkCli(
     const as = cfg?.as === 'user' ? 'user' : 'bot';
     env.SMARDYDY_LARK_CLI = String(cfg?.cliCommand || 'lark-cli').trim() || 'lark-cli';
     env.SMARDYDY_LARK_TARGET_ID = targetId;
+    env.SMARDYDY_LARK_AS = as;
+    env.SMARDYDY_LARK_MSG_TYPE = msgType;
     env.SMARDYDY_LARK_CONTENT =
-      msgType === 'text' ? `${title}\n${body}` : buildLarkPostContent(title, body);
+      msgType === 'text' ? JSON.stringify({ text: `${title}\n${body}` }) : buildLarkPostContent(title, body);
     const targetFlag = targetType === 'chat' ? '--chat-id' : '--user-id';
-    cmd = [
-      '& $env:SMARDYDY_LARK_CLI',
-      'im +messages-send',
-      `--as ${as}`,
-      `${targetFlag} $env:SMARDYDY_LARK_TARGET_ID`,
-      `--msg-type ${msgType}`,
-      '--content $env:SMARDYDY_LARK_CONTENT',
-    ].join(' ');
+    cmd = `
+$arguments = @(
+  'im',
+  '+messages-send',
+  '--as',
+  $env:SMARDYDY_LARK_AS,
+  '${targetFlag}',
+  $env:SMARDYDY_LARK_TARGET_ID,
+  '--msg-type',
+  $env:SMARDYDY_LARK_MSG_TYPE,
+  '--content',
+  $env:SMARDYDY_LARK_CONTENT
+)
+& $env:SMARDYDY_LARK_CLI @arguments
+`;
   } else {
     if (!cfg?.command) throw new Error('lark_cli 缺少 command 模板');
     // 模板占位符替换；环境变量同时提供给复杂模板使用
