@@ -1,4 +1,6 @@
 import { createHmac } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import type { Channel, Run, Task } from '../../shared/types';
 import * as db from '../db';
 import { runPowerShell } from '../runner/script';
@@ -146,6 +148,56 @@ function buildLarkPostContent(title: string, body: string) {
   });
 }
 
+async function runProcess(command: string[], timeoutMs: number) {
+  const proc = Bun.spawn(command, { stdout: 'pipe', stderr: 'pipe', stdin: 'ignore' });
+  let timedOut = false;
+  const killer = setTimeout(() => {
+    timedOut = true;
+    proc.kill();
+  }, timeoutMs);
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ]);
+  clearTimeout(killer);
+  let output = stdout;
+  if (stderr.trim()) output += (output ? '\n' : '') + '[stderr]\n' + stderr;
+  if (timedOut) output += '\n[agendum] 命令超时被终止';
+  return { exitCode, output };
+}
+
+function findExistingPath(candidates: string[]) {
+  for (const candidate of candidates) {
+    if (candidate && fs.existsSync(candidate)) return candidate;
+  }
+  return '';
+}
+
+function resolveLarkCliCommand(cliCommand: string) {
+  const configured = cliCommand.trim() || 'lark-cli';
+  const cliPath = fs.existsSync(configured) ? configured : Bun.which(configured) || configured;
+  const cliDir = path.dirname(cliPath);
+  const appDataNpm = process.env.APPDATA ? path.join(process.env.APPDATA, 'npm') : '';
+  const runJs = findExistingPath([
+    process.env.LARK_CLI_RUN_JS || '',
+    path.join(cliDir, 'node_modules', '@larksuite', 'cli', 'scripts', 'run.js'),
+    appDataNpm ? path.join(appDataNpm, 'node_modules', '@larksuite', 'cli', 'scripts', 'run.js') : '',
+  ]);
+  const nodeExe = findExistingPath([
+    process.env.NODE_EXE || '',
+    Bun.which('node') || '',
+    path.join(process.env['ProgramFiles'] || 'C:\\Program Files', 'nodejs', 'node.exe'),
+  ]);
+  if (nodeExe && runJs) return [nodeExe, runJs];
+
+  if (cliPath.toLowerCase().endsWith('.cmd')) {
+    const ps1 = path.join(path.dirname(cliPath), `${path.basename(cliPath, '.cmd')}.ps1`);
+    if (fs.existsSync(ps1)) return [ps1];
+  }
+  return [configured];
+}
+
 async function sendLarkCli(
   cfg: {
     command?: string;
@@ -173,28 +225,24 @@ async function sendLarkCli(
     const targetType = cfg?.targetType === 'chat' ? 'chat' : 'user';
     const msgType = cfg?.msgType === 'text' ? 'text' : 'post';
     const as = cfg?.as === 'user' ? 'user' : 'bot';
-    env.SMARDYDY_LARK_CLI = String(cfg?.cliCommand || 'lark-cli').trim() || 'lark-cli';
-    env.SMARDYDY_LARK_TARGET_ID = targetId;
-    env.SMARDYDY_LARK_AS = as;
-    env.SMARDYDY_LARK_MSG_TYPE = msgType;
-    env.SMARDYDY_LARK_CONTENT =
-      msgType === 'text' ? JSON.stringify({ text: `${title}\n${body}` }) : buildLarkPostContent(title, body);
+    const content = msgType === 'text' ? JSON.stringify({ text: `${title}\n${body}` }) : buildLarkPostContent(title, body);
     const targetFlag = targetType === 'chat' ? '--chat-id' : '--user-id';
-    cmd = `
-$arguments = @(
-  'im',
-  '+messages-send',
-  '--as',
-  $env:SMARDYDY_LARK_AS,
-  '${targetFlag}',
-  $env:SMARDYDY_LARK_TARGET_ID,
-  '--msg-type',
-  $env:SMARDYDY_LARK_MSG_TYPE,
-  '--content',
-  $env:SMARDYDY_LARK_CONTENT
-)
-& $env:SMARDYDY_LARK_CLI @arguments
-`;
+    const command = [
+      ...resolveLarkCliCommand(String(cfg?.cliCommand || 'lark-cli')),
+      'im',
+      '+messages-send',
+      '--as',
+      as,
+      targetFlag,
+      targetId,
+      '--msg-type',
+      msgType,
+      '--content',
+      content,
+    ];
+    const r = await runProcess(command, 30_000);
+    if (r.exitCode !== 0) throw new Error(`lark-cli 命令失败(${r.exitCode}): ${r.output.slice(0, 300)}`);
+    return;
   } else {
     if (!cfg?.command) throw new Error('lark_cli 缺少 command 模板');
     // 模板占位符替换；环境变量同时提供给复杂模板使用
