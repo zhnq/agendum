@@ -192,7 +192,9 @@ export interface Channel {
   type: ChannelType;
   /**
    * lark_webhook: { url: string, secret?: string }
-   * lark_cli:     { command: string }  // 含 {{title}} {{body}} 占位符的 PowerShell 命令
+   * lark_cli:
+   *   推荐表单配置：{ mode:'preset', cliCommand?:string, targetType:'user'|'chat', targetId:string, msgType:'post'|'text', as:'bot'|'user' }
+   *   高级模板：{ mode:'command', command:string }  // 含 {{title}} {{body}} 占位符的 PowerShell 命令
    * serverchan:   { sendkey: string }
    * win_toast:    {}
    */

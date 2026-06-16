@@ -131,15 +131,69 @@ $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
   if (r.exitCode !== 0) throw new Error(`Windows toast 失败: ${r.output.slice(0, 300)}`);
 }
 
-async function sendLarkCli(cfg: { command: string }, title: string, body: string) {
-  if (!cfg?.command) throw new Error('lark_cli 缺少 command 模板');
-  // 模板占位符替换；环境变量同时提供给复杂模板使用
-  const cmd = cfg.command
-    .replaceAll('{{title}}', '$env:SMARDYDY_NOTIFY_TITLE')
-    .replaceAll('{{body}}', '$env:SMARDYDY_NOTIFY_BODY');
-  const r = await runPowerShell(cmd, {
-    env: { SMARDYDY_NOTIFY_TITLE: title, SMARDYDY_NOTIFY_BODY: body },
-    timeoutMs: 30_000,
+function buildLarkPostContent(title: string, body: string) {
+  const lines = body
+    .split(/\r?\n/g)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 20)
+    .map((line) => [{ tag: 'text', text: line.slice(0, 400) }]);
+  return JSON.stringify({
+    zh_cn: {
+      title: title.slice(0, 80),
+      content: lines.length > 0 ? lines : [[{ tag: 'text', text: '无内容' }]],
+    },
   });
+}
+
+async function sendLarkCli(
+  cfg: {
+    command?: string;
+    mode?: 'preset' | 'command';
+    cliCommand?: string;
+    targetType?: 'user' | 'chat';
+    targetId?: string;
+    msgType?: 'text' | 'post';
+    as?: 'bot' | 'user';
+  },
+  title: string,
+  body: string,
+) {
+  const env: Record<string, string> = {
+    SMARDYDY_NOTIFY_TITLE: title,
+    SMARDYDY_NOTIFY_BODY: body,
+  };
+
+  let cmd = '';
+  const mode = cfg?.mode || (cfg?.targetId ? 'preset' : 'command');
+
+  if (mode === 'preset') {
+    const targetId = String(cfg?.targetId || '').trim();
+    if (!targetId) throw new Error('lark_cli 缺少接收人/群聊 ID');
+    const targetType = cfg?.targetType === 'chat' ? 'chat' : 'user';
+    const msgType = cfg?.msgType === 'text' ? 'text' : 'post';
+    const as = cfg?.as === 'user' ? 'user' : 'bot';
+    env.SMARDYDY_LARK_CLI = String(cfg?.cliCommand || 'lark-cli').trim() || 'lark-cli';
+    env.SMARDYDY_LARK_TARGET_ID = targetId;
+    env.SMARDYDY_LARK_CONTENT =
+      msgType === 'text' ? `${title}\n${body}` : buildLarkPostContent(title, body);
+    const targetFlag = targetType === 'chat' ? '--chat-id' : '--user-id';
+    cmd = [
+      '& $env:SMARDYDY_LARK_CLI',
+      'im +messages-send',
+      `--as ${as}`,
+      `${targetFlag} $env:SMARDYDY_LARK_TARGET_ID`,
+      `--msg-type ${msgType}`,
+      '--content $env:SMARDYDY_LARK_CONTENT',
+    ].join(' ');
+  } else {
+    if (!cfg?.command) throw new Error('lark_cli 缺少 command 模板');
+    // 模板占位符替换；环境变量同时提供给复杂模板使用
+    cmd = cfg.command
+      .replaceAll('{{title}}', '$env:SMARDYDY_NOTIFY_TITLE')
+      .replaceAll('{{body}}', '$env:SMARDYDY_NOTIFY_BODY');
+  }
+
+  const r = await runPowerShell(cmd, { env, timeoutMs: 30_000 });
   if (r.exitCode !== 0) throw new Error(`lark-cli 命令失败(${r.exitCode}): ${r.output.slice(0, 300)}`);
 }
