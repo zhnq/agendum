@@ -9,6 +9,10 @@ $HealthUrl = 'http://127.0.0.1:8787/health'
 $UiUrl     = 'http://127.0.0.1:8787'
 $LogFile   = Join-Path $Root 'data\tray.log'
 $DaemonExe = Join-Path $Root 'agendum-daemon.exe'
+$RunKey    = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+$RunName   = 'Agendum'
+$LegacyRunName = 'smardydy'
+$TrayScript = $PSCommandPath
 
 function Write-TrayLog([string]$msg) {
     try { Add-Content -Path $LogFile -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') $msg" -Encoding UTF8 } catch {}
@@ -74,6 +78,30 @@ function Stop-Daemon {
     foreach ($c in $conns) { Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue }
 }
 
+function Get-AutostartEnabled {
+    try {
+        $value = (Get-ItemProperty -Path $RunKey -Name $RunName -ErrorAction Stop).$RunName
+        return -not [string]::IsNullOrWhiteSpace($value)
+    } catch {
+        return $false
+    }
+}
+
+function Set-AutostartEnabled([bool]$enabled) {
+    if ($enabled) {
+        New-Item -Path $RunKey -Force | Out-Null
+        $cmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$TrayScript`""
+        Set-ItemProperty -Path $RunKey -Name $RunName -Value $cmd -ErrorAction Stop
+        Remove-ItemProperty -Path $RunKey -Name $LegacyRunName -ErrorAction SilentlyContinue
+        Write-TrayLog '已启用开机启动'
+    }
+    else {
+        Remove-ItemProperty -Path $RunKey -Name $RunName -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $RunKey -Name $LegacyRunName -ErrorAction SilentlyContinue
+        Write-TrayLog '已关闭开机启动'
+    }
+}
+
 $notify = New-Object System.Windows.Forms.NotifyIcon
 $notify.Icon = $iconUnknown
 $notify.Text = 'Agendum · 检测中'
@@ -95,6 +123,23 @@ $miRestart.Add_Click({
 
 $miLogs = $menu.Items.Add('打开数据目录')
 $miLogs.Add_Click({ Start-Process explorer.exe (Join-Path $Root 'data') })
+
+$miAutostart = New-Object System.Windows.Forms.ToolStripMenuItem('开机启动')
+$miAutostart.Checked = Get-AutostartEnabled
+$miAutostart.CheckOnClick = $true
+$miAutostart.Add_Click({
+    try {
+        Set-AutostartEnabled $miAutostart.Checked
+        $message = if ($miAutostart.Checked) { '已启用开机启动' } else { '已关闭开机启动' }
+        $notify.ShowBalloonTip(2500, 'Agendum', $message, 'Info')
+    } catch {
+        $miAutostart.Checked = -not $miAutostart.Checked
+        Write-TrayLog "修改开机启动失败: $_"
+        $notify.ShowBalloonTip(5000, 'Agendum', '修改开机启动失败，请查看托盘日志', 'Error')
+    }
+})
+[void]$menu.Items.Add($miAutostart)
+$menu.Add_Opening({ $miAutostart.Checked = Get-AutostartEnabled })
 
 $miAuto = New-Object System.Windows.Forms.ToolStripMenuItem('自动重启')
 $miAuto.Checked = $true
