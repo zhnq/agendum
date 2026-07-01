@@ -51,6 +51,7 @@ try {
   Copy-Item -LiteralPath (Join-Path $root 'scripts\uninstall-autostart.ps1') -Destination (Join-Path $stage 'scripts\uninstall-autostart.ps1')
   Copy-Item -LiteralPath (Join-Path $root 'scripts\stop-agendum.ps1') -Destination (Join-Path $stage 'scripts\stop-agendum.ps1')
   Copy-Item -LiteralPath (Join-Path $root 'README.md') -Destination (Join-Path $stage 'README.md')
+  Copy-Item -LiteralPath (Join-Path $root 'packaging\windows\agendum.ico') -Destination (Join-Path $stage 'agendum.ico')
 
   if ($SkipInstaller) {
     Write-Output "OK: staged app at $stage"

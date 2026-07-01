@@ -28,12 +28,12 @@ Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdir
 
 [Tasks]
 Name: "startmenuicon"; Description: "创建开始菜单快捷方式"; GroupDescription: "快捷方式："; Flags: checkedonce
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "快捷方式："; Flags: unchecked
+Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "快捷方式："; Flags: checkedonce
 
 [Icons]
-Name: "{group}\Agendum"; Filename: "powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\tray\smardydy-tray.ps1"""; WorkingDir: "{app}"; Tasks: startmenuicon
+Name: "{group}\Agendum"; Filename: "powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\tray\smardydy-tray.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\agendum.ico"; Tasks: startmenuicon
 Name: "{group}\卸载 Agendum"; Filename: "{uninstallexe}"; Tasks: startmenuicon
-Name: "{autodesktop}\Agendum"; Filename: "powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\tray\smardydy-tray.ps1"""; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autodesktop}\Agendum"; Filename: "powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\tray\smardydy-tray.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\agendum.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\install-autostart.ps1"""; WorkingDir: "{app}"; Flags: runhidden
